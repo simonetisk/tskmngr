@@ -877,6 +877,12 @@ export default function Docket() {
     return () => clearInterval(id);
   }, [anyRunning]);
 
+  // Native <input type="date"> renders its own locale-based placeholder (e.g. "yyyy-mm-dd" vs
+  // "åååå-mm-dd") — this is controlled by the document's language, not by our own text.
+  useEffect(() => {
+    document.documentElement.lang = language === "sv" ? "sv-SE" : "en-US";
+  }, [language]);
+
   // ---- account / auth (real Google sign-in) -----------------------
 const signIn = async () => {
   try {
@@ -1238,7 +1244,7 @@ const signOut = async () => {
                   {task.done ? (
                     <span className="readonly-inline">{formatDate(task.deadline, language)}</span>
                   ) : (
-                    <input type="date" value={task.deadline || ""} onChange={(e) => setDeadline(task.id, e.target.value)} />
+                    <input type="date" lang={language === "sv" ? "sv-SE" : "en-US"} value={task.deadline || ""} onChange={(e) => setDeadline(task.id, e.target.value)} />
                   )}
                 </div>
               )}
@@ -1321,7 +1327,7 @@ const signOut = async () => {
                       <div className="manual-form">
                         <div className="manual-field"><label>{t("hours")}</label><input type="number" min="0" step="1" value={manualDraft.hours} onChange={(e) => setManualDraft((d) => ({ ...d, hours: e.target.value }))} /></div>
                         <div className="manual-field"><label>{t("minutes")}</label><input type="number" min="0" max="59" step="1" value={manualDraft.minutes} onChange={(e) => setManualDraft((d) => ({ ...d, minutes: e.target.value }))} /></div>
-                        <div className="manual-field"><label>{t("date")}</label><input type="date" value={manualDraft.date} onChange={(e) => setManualDraft((d) => ({ ...d, date: e.target.value }))} /></div>
+                        <div className="manual-field"><label>{t("date")}</label><input type="date" lang={language === "sv" ? "sv-SE" : "en-US"} value={manualDraft.date} onChange={(e) => setManualDraft((d) => ({ ...d, date: e.target.value }))} /></div>
                         <button className="manual-submit" onClick={() => submitManual(task.id)}>{t("logTime")}</button>
                         <button className="manual-cancel" onClick={closeManual}>{t("cancel")}</button>
                       </div>
@@ -1976,7 +1982,7 @@ const signOut = async () => {
                 </div>
 
                 <label className="field-label">{t("fieldDeadline")}</label>
-                <input type="date" className="docket-input" value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} />
+                <input type="date" lang={language === "sv" ? "sv-SE" : "en-US"} className="docket-input" value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} />
 
                 <div className="field-label-row">
                   <label className="field-label">{t("fieldCategory")}</label>
