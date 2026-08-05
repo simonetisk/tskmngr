@@ -1483,7 +1483,7 @@ const signOut = async () => {
 
   const renderColorPopover = (currentColor, onPick) => (
     <>
-      <div className="backdrop-click" onClick={() => setColorPickerFor(null)} />
+      <div className="color-popover-backdrop" onClick={() => setColorPickerFor(null)} />
       <div className="color-popover" onClick={(e) => e.stopPropagation()}>
         <div className="color-popover-grid">
           {MODERN_PALETTE.map((color) => (
@@ -1824,7 +1824,8 @@ const signOut = async () => {
         .cat-swatches { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0 12px; align-items: center; }
         .color-picker-hint { font-size: 12px; color: var(--muted); }
 
-        .color-popover { position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; background: var(--card); border: 1px solid var(--line-strong); border-radius: 10px; padding: 14px; min-width: 220px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); }
+        .color-popover-backdrop { position: fixed; inset: 0; z-index: 65; background: rgba(10,11,15,0.4); }
+        .color-popover { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 70; background: var(--card); border: 1px solid var(--line-strong); border-radius: 10px; padding: 16px; min-width: 240px; box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
         .color-popover-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 14px; }
         .color-popover-swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; padding: 0; transition: transform 0.12s ease; }
         .color-popover-swatch:hover { transform: scale(1.15); }
