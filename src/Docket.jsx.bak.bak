@@ -1396,13 +1396,13 @@ const signOut = async () => {
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
         .docket-root {
-          --paper: #EAE5D9; --card: #F8F5EE; --ink: #2B2621; --ink-soft: #6B6255; --muted: #8C8373;
-          --line: #DDD5C2; --line-strong: #C3B7A0; --accent: #4A4335;
+          --paper: #E6E8ED; --card: #FFFFFF; --ink: #1C2333; --ink-soft: #5B6272; --muted: #7D8496;
+          --line: #D3D7E0; --line-strong: #AFB5C4; --accent: #2F3B57;
           --pr-high: #C4483C; --pr-high-tint: #FBEAE8;
           --pr-medium: #B98A2E; --pr-medium-tint: #FAF1E0;
           --pr-low: #3E7A68; --pr-low-tint: #E8F1EC; --pr-low-rgb: 62,122,104;
-          --row-active-bg: rgba(43,38,33,0.08);
-          --card-shadow: 0 1px 2px rgba(43,35,20,0.06), 0 2px 8px rgba(43,35,20,0.06);
+          --row-active-bg: rgba(28,35,51,0.08);
+          --card-shadow: 0 1px 2px rgba(24,29,41,0.05), 0 2px 8px rgba(24,29,41,0.05);
           font-family: 'Inter', sans-serif; background: var(--paper); color: var(--ink);
           min-height: 100vh; padding: 0 0 60px; box-sizing: border-box;
           transition: background 0.15s ease, color 0.15s ease;
@@ -1423,39 +1423,35 @@ const signOut = async () => {
         .view-transition { animation: viewEnter 0.32s ease; }
 
         .navbar { background: var(--card); border-bottom: 2px solid var(--ink); margin-bottom: 22px; }
-        .navbar-inner { max-width: 980px; margin: 0 auto; padding: 14px 20px; display: flex; flex-direction: column; gap: 12px; }
-        .navbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-        .navbar-brand { display: flex; flex-direction: column; min-width: 0; }
-        .navbar-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
-        .navbar-row-bottom { justify-content: flex-start; }
+        .navbar-inner { max-width: 980px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
         .docket-title { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
         .docket-sub { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+        .navbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-        .search-wrap { position: relative; display: flex; align-items: center; flex-shrink: 0; }
+        .search-wrap { position: relative; display: flex; align-items: center; }
         .search-icon { position: absolute; left: 9px; color: var(--muted); pointer-events: none; display: flex; }
-        .search-input { width: 220px; font-size: 12.5px; padding: 8px 26px 8px 30px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink); font-family: 'Inter', sans-serif; }
+        .search-input { width: 190px; font-size: 12.5px; padding: 8px 26px 8px 30px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink); font-family: 'Inter', sans-serif; }
         .search-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
         .search-clear { position: absolute; right: 6px; background: none; border: none; color: var(--muted); cursor: pointer; display: flex; padding: 3px; }
         .search-clear:hover { color: var(--ink); }
-        @media (max-width: 500px) { .search-input { width: 100%; } }
+        @media (max-width: 880px) { .search-input { width: 130px; } }
 
-        .view-tabs { display: flex; gap: 4px; background: var(--paper); padding: 3px; border-radius: 7px; border: 1px solid var(--line); flex-wrap: wrap; }
+        .view-tabs { display: flex; gap: 4px; background: var(--paper); padding: 3px; border-radius: 7px; border: 1px solid var(--line); }
         .view-tab { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 5px; border: none; background: none; color: var(--ink-soft); cursor: pointer; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
         .view-tab[data-active="true"] { background: var(--ink); color: var(--paper); }
 
-        .nav-btn { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink-soft); cursor: pointer; font-size: 12.5px; position: relative; white-space: nowrap; flex-shrink: 0; }
+        .nav-btn { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink-soft); cursor: pointer; font-size: 12.5px; position: relative; }
         .nav-btn:hover { color: var(--ink); border-color: var(--ink-soft); }
         .nav-btn[data-warn="true"] { border-color: var(--pr-high); }
         .storage-error-box { display: flex; align-items: flex-start; gap: 7px; font-size: 11.5px; color: var(--pr-high); background: var(--pr-high-tint); border: 1px solid var(--pr-high); border-radius: 5px; padding: 8px 9px; margin-bottom: 10px; line-height: 1.4; }
 
-        .theme-toggle { display: flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--line-strong); border-radius: 20px; padding: 5px 5px; cursor: pointer; flex-shrink: 0; }
+        .theme-toggle { display: flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--line-strong); border-radius: 20px; padding: 5px 5px; cursor: pointer; }
         .theme-toggle-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--paper); display: flex; align-items: center; justify-content: center; }
-        .lang-toggle { display: flex; align-items: center; background: var(--card); border: 1px solid var(--line-strong); border-radius: 20px; padding: 5px; cursor: pointer; flex-shrink: 0; }
+        .lang-toggle { display: flex; align-items: center; background: var(--card); border: 1px solid var(--line-strong); border-radius: 20px; padding: 5px; cursor: pointer; }
         .lang-toggle-thumb { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1; overflow: hidden; }
 
-        .account-btn { display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 6px; border-radius: 20px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink); cursor: pointer; font-size: 12.5px; flex-shrink: 0; max-width: 220px; }
+        .account-btn { display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 6px; border-radius: 20px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink); cursor: pointer; font-size: 12.5px; }
         .account-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--card); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
-        .account-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
         .dropdown-panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; background: var(--card); border: 1px solid var(--line-strong); border-radius: 8px; padding: 12px; min-width: 240px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: left; }
         .dropdown-panel-label { font-size: 11px; color: var(--muted); margin-bottom: 10px; line-height: 1.5; display: flex; align-items: center; gap: 6px; }
@@ -1746,85 +1742,12 @@ const signOut = async () => {
 
       <div className="navbar">
         <div className="navbar-inner">
-          <div className="navbar-row navbar-row-top">
-            <div className="navbar-brand">
-              <p className="docket-title">Tskmngr</p>
-              <p className="docket-sub">{t("subtitle")}</p>
-            </div>
-
-            <div className="navbar-controls">
-              <div style={{ position: "relative" }}>
-                <button className="nav-btn" data-warn={!storageOk} onClick={() => setDataMenuOpen((v) => !v)}>
-                  {account ? <Cloud size={14} /> : <HardDrive size={14} />} {t("dataBtn")}
-                  {!storageOk && <AlertCircle size={13} style={{ color: "var(--pr-high)" }} />}
-                  <ChevronDown size={13} />
-                </button>
-                {dataMenuOpen && (
-                  <>
-                    <div className="backdrop-click" onClick={() => { setDataMenuOpen(false); setClearArmed(false); }} />
-                    <div className="dropdown-panel">
-                      {!storageOk && (
-                        <div className="storage-error-box">
-                          <AlertCircle size={13} /> {storageError || t("saveErrorFallback")}
-                        </div>
-                      )}
-                      <div className="dropdown-panel-label">
-                        {account ? <><Cloud size={12} /> {t("cloudLabel")} — {account.name}</> : <><HardDrive size={12} /> {t("localLabel")}</>}
-                      </div>
-                      <button className="dropdown-item" onClick={exportData}><Download size={14} /> {t("saveToFile")}</button>
-                      <button className="dropdown-item" onClick={triggerImport}><Upload size={14} /> {t("loadFromFile")}</button>
-                      <input ref={fileInputRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={handleImportFile} />
-                      <div className="dropdown-divider" />
-                      <button className="dropdown-item" data-danger="true" onClick={armClear}><Trash2 size={14} /> {t("clearAllData")}</button>
-                      {clearArmed && (
-                        <div className="clear-confirm">
-                          <p className="clear-confirm-text">{clearConfirmText(language, !!account)}</p>
-                          <label className="clear-confirm-checkbox">
-                            <input type="checkbox" checked={clearChecked} onChange={(e) => setClearChecked(e.target.checked)} />
-                            {t("understandUndo")}
-                          </label>
-                          <div className="clear-confirm-actions">
-                            <button className="clear-cancel" onClick={cancelClear}>{t("cancel")}</button>
-                            <button className="clear-confirm-btn" disabled={!clearChecked} onClick={confirmClear}>{t("permanentlyClear")}</button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div style={{ position: "relative" }}>
-                {account ? (
-                  <button className="account-btn" onClick={() => setAccountMenuOpen((v) => !v)}>
-                    <span className="account-avatar">{account.name.trim()[0]?.toUpperCase() || "U"}</span>
-                    <span className="account-name-text">{account.name}</span>
-                  </button>
-                ) : (
-                  <button className="nav-btn" onClick={signIn}><LogIn size={14} /> {t("signInGoogle")}</button>
-                )}
-                {accountMenuOpen && account && (
-                  <>
-                    <div className="backdrop-click" onClick={() => setAccountMenuOpen(false)} />
-                    <div className="dropdown-panel">
-                      <div className="dropdown-panel-label"><User size={12} /> {t("signedInAs", { name: account.name })}</div>
-                      <button className="dropdown-item" data-danger="true" onClick={signOut}><LogOut size={14} /> {t("signOut")}</button>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <button className="theme-toggle" onClick={() => setTheme((cur) => (cur === "dark" ? "light" : "dark"))} aria-label={t("toggleDarkMode")}>
-                <span className="theme-toggle-thumb">{theme === "dark" ? <Moon size={12} /> : <Sun size={12} />}</span>
-              </button>
-
-              <button className="lang-toggle" onClick={() => setLanguage((cur) => (cur === "sv" ? "en" : "sv"))} aria-label={t("toggleLanguage")}>
-                <span className="lang-toggle-thumb">{language === "sv" ? "🇸🇪" : "🇬🇧"}</span>
-              </button>
-            </div>
+          <div>
+            <p className="docket-title">Tskmngr</p>
+            <p className="docket-sub">{t("subtitle")}</p>
           </div>
 
-          <div className="navbar-row navbar-row-bottom">
+          <div className="navbar-right">
             <div className="search-wrap">
               <span className="search-icon"><Search size={13} /></span>
               <input
@@ -1844,6 +1767,75 @@ const signOut = async () => {
               <button className="view-tab" data-active={activeView === "new"} onClick={() => setActiveView("new")}><Plus size={13} /> {t("tabNew")}</button>
               <button className="view-tab" data-active={activeView === "reports"} onClick={() => setActiveView("reports")}><BarChart3 size={13} /> {t("tabReports")}</button>
             </div>
+
+            <div style={{ position: "relative" }}>
+              <button className="nav-btn" data-warn={!storageOk} onClick={() => setDataMenuOpen((v) => !v)}>
+                {account ? <Cloud size={14} /> : <HardDrive size={14} />} {t("dataBtn")}
+                {!storageOk && <AlertCircle size={13} style={{ color: "var(--pr-high)" }} />}
+                <ChevronDown size={13} />
+              </button>
+              {dataMenuOpen && (
+                <>
+                  <div className="backdrop-click" onClick={() => { setDataMenuOpen(false); setClearArmed(false); }} />
+                  <div className="dropdown-panel">
+                    {!storageOk && (
+                      <div className="storage-error-box">
+                        <AlertCircle size={13} /> {storageError || t("saveErrorFallback")}
+                      </div>
+                    )}
+                    <div className="dropdown-panel-label">
+                      {account ? <><Cloud size={12} /> {t("cloudLabel")} — {account.name}</> : <><HardDrive size={12} /> {t("localLabel")}</>}
+                    </div>
+                    <button className="dropdown-item" onClick={exportData}><Download size={14} /> {t("saveToFile")}</button>
+                    <button className="dropdown-item" onClick={triggerImport}><Upload size={14} /> {t("loadFromFile")}</button>
+                    <input ref={fileInputRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={handleImportFile} />
+                    <div className="dropdown-divider" />
+                    <button className="dropdown-item" data-danger="true" onClick={armClear}><Trash2 size={14} /> {t("clearAllData")}</button>
+                    {clearArmed && (
+                      <div className="clear-confirm">
+                        <p className="clear-confirm-text">{clearConfirmText(language, !!account)}</p>
+                        <label className="clear-confirm-checkbox">
+                          <input type="checkbox" checked={clearChecked} onChange={(e) => setClearChecked(e.target.checked)} />
+                          {t("understandUndo")}
+                        </label>
+                        <div className="clear-confirm-actions">
+                          <button className="clear-cancel" onClick={cancelClear}>{t("cancel")}</button>
+                          <button className="clear-confirm-btn" disabled={!clearChecked} onClick={confirmClear}>{t("permanentlyClear")}</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div style={{ position: "relative" }}>
+              {account ? (
+                <button className="account-btn" onClick={() => setAccountMenuOpen((v) => !v)}>
+                  <span className="account-avatar">{account.name.trim()[0]?.toUpperCase() || "U"}</span>
+                  {account.name}
+                </button>
+              ) : (
+                <button className="nav-btn" onClick={signIn}><LogIn size={14} /> {t("signInGoogle")}</button>
+              )}
+              {accountMenuOpen && account && (
+                <>
+                  <div className="backdrop-click" onClick={() => setAccountMenuOpen(false)} />
+                  <div className="dropdown-panel">
+                    <div className="dropdown-panel-label"><User size={12} /> {t("signedInAs", { name: account.name })}</div>
+                    <button className="dropdown-item" data-danger="true" onClick={signOut}><LogOut size={14} /> {t("signOut")}</button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button className="theme-toggle" onClick={() => setTheme((cur) => (cur === "dark" ? "light" : "dark"))} aria-label={t("toggleDarkMode")}>
+              <span className="theme-toggle-thumb">{theme === "dark" ? <Moon size={12} /> : <Sun size={12} />}</span>
+            </button>
+
+            <button className="lang-toggle" onClick={() => setLanguage((cur) => (cur === "sv" ? "en" : "sv"))} aria-label={t("toggleLanguage")}>
+              <span className="lang-toggle-thumb">{language === "sv" ? "🇸🇪" : "🇬🇧"}</span>
+            </button>
           </div>
         </div>
       </div>
