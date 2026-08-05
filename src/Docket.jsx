@@ -181,7 +181,7 @@ function computeLeadTimeByCategory(tasks, categories, period, lang) {
   return rows;
 }
 
-function buildTimelineData(tasks, categories, period, lang) {
+function getTimeBuckets(period, lang) {
   const range = getPeriodRange(period);
   if (!range) return null;
   const buckets = [];
@@ -209,6 +209,12 @@ function buildTimelineData(tasks, categories, period, lang) {
       buckets.push({ label: labels[m], start: new Date(range.start.getFullYear(), m, 1), end: new Date(range.start.getFullYear(), m + 1, 1) });
     }
   }
+  return buckets;
+}
+
+function buildTimelineData(tasks, categories, period, lang) {
+  const buckets = getTimeBuckets(period, lang);
+  if (!buckets) return null;
   const rows = buckets.map((b) => {
     const row = { bucket: b.label };
     tasks.forEach((t) => {
@@ -219,6 +225,45 @@ function buildTimelineData(tasks, categories, period, lang) {
           row[key] = (row[key] || 0) + s.seconds / 3600;
         }
       });
+    });
+    return row;
+  });
+  const seriesKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r).filter((k) => k !== "bucket"))));
+  return { rows, seriesKeys };
+}
+
+function computeCompletedCountByCategory(tasks, categories, period, lang) {
+  const range = getPeriodRange(period);
+  const totals = {};
+  tasks.forEach((t) => {
+    if (!t.done || !t.completedAt) return;
+    if (range) {
+      const d = new Date(t.completedAt);
+      if (d < range.start || d >= range.end) return;
+    }
+    const key = t.category || "__uncategorized__";
+    totals[key] = (totals[key] || 0) + 1;
+  });
+  const meta = categoryMeta(categories, lang);
+  const rows = Object.entries(totals).map(([id, count]) => ({
+    id, name: meta[id]?.name || translate(lang, "deletedCategory"), color: meta[id]?.color || UNCATEGORIZED_COLOR, count,
+  }));
+  rows.sort((a, b) => b.count - a.count);
+  return rows;
+}
+
+function buildCompletedTimelineData(tasks, categories, period, lang) {
+  const buckets = getTimeBuckets(period, lang);
+  if (!buckets) return null;
+  const rows = buckets.map((b) => {
+    const row = { bucket: b.label };
+    tasks.forEach((t) => {
+      if (!t.done || !t.completedAt) return;
+      const d = new Date(t.completedAt);
+      if (d >= b.start && d < b.end) {
+        const key = t.category || "__uncategorized__";
+        row[key] = (row[key] || 0) + 1;
+      }
     });
     return row;
   });
@@ -416,6 +461,10 @@ const STRINGS = {
     trackedStrong: "tracked",
     noTrackedTime: "No tracked time in this period yet. Start a timer or log time manually on a task.",
     timeTooltipLabel: "Time",
+    completedTasksByCategory: "Completed tasks by category",
+    tasksCompletedStrong: "tasks completed",
+    completedCountTooltipLabel: "Tasks",
+    noCompletedTasks: "No tasks completed in this period yet.",
     avgLeadTimeByCategory: "Average lead time by category",
     leadTimeCaptionPrefix: "Time from creating a task to marking it complete, for tasks finished",
     pickPeriodForTimeline: "Pick Week, Month, or Year above to see the timeline view.",
@@ -553,6 +602,10 @@ const STRINGS = {
     trackedStrong: "spårat",
     noTrackedTime: "Ingen spårad tid under denna period än. Starta en timer eller logga tid manuellt på en uppgift.",
     timeTooltipLabel: "Tid",
+    completedTasksByCategory: "Slutförda uppgifter per kategori",
+    tasksCompletedStrong: "uppgifter slutförda",
+    completedCountTooltipLabel: "Uppgifter",
+    noCompletedTasks: "Inga uppgifter slutförda under denna period än.",
     avgLeadTimeByCategory: "Genomsnittlig ledtid per kategori",
     leadTimeCaptionPrefix: "Tiden från att en uppgift skapas till att den markeras som klar, för uppgifter som slutförts",
     pickPeriodForTimeline: "Välj Vecka, Månad eller År ovan för att se tidslinjen.",
@@ -639,6 +692,7 @@ export default function Docket() {
   const [activeView, setActiveView] = useState("tasks");
   const [reportPeriod, setReportPeriod] = useState("month");
   const [chartType, setChartType] = useState("bar");
+  const [completedChartType, setCompletedChartType] = useState("bar");
   const [searchQuery, setSearchQuery] = useState("");
 
   const [loading, setLoading] = useState(true);
@@ -1092,9 +1146,13 @@ const signOut = async () => {
   const reportRows = computeCategoryTotals(tasks, categories, reportPeriod, language);
   const reportTotalSeconds = reportRows.reduce((s, r) => s + r.seconds, 0);
   const chartData = reportRows.map((r) => ({ name: r.name, hours: +(r.seconds / 3600).toFixed(2), color: r.color, seconds: r.seconds }));
-  const timeline = buildTimelineData(tasks, categories, reportPeriod);
+  const timeline = buildTimelineData(tasks, categories, reportPeriod, language);
   const catMeta = categoryMeta(categories, language);
   const leadTimeRows = computeLeadTimeByCategory(tasks, categories, reportPeriod, language);
+  const completedRows = computeCompletedCountByCategory(tasks, categories, reportPeriod, language);
+  const completedTotal = completedRows.reduce((s, r) => s + r.count, 0);
+  const completedChartData = completedRows.map((r) => ({ name: r.name, count: r.count, color: r.color }));
+  const completedTimeline = buildCompletedTimelineData(tasks, categories, reportPeriod, language);
 
   const isDark = theme === "dark";
   const chartTickColor = isDark ? "#C7CBD6" : "#5B6272";
@@ -1728,6 +1786,7 @@ const signOut = async () => {
         .reports-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
         .reports-heading { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; margin: 0; }
         .reports-subheading { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; margin: 26px 0 10px; }
+        .reports-divider { height: 1px; background: var(--line); margin: 28px 0 22px; }
         .period-picker, .chart-type-picker { display: flex; gap: 6px; }
         .period-chip { font-size: 12.5px; padding: 7px 13px; border-radius: 20px; border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink-soft); cursor: pointer; }
         .period-chip[data-active="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
@@ -2175,6 +2234,95 @@ const signOut = async () => {
                       <span className="breakdown-name">{r.name}</span>
                       <span className="breakdown-time">{formatDuration(r.seconds, language)}</span>
                       <span className="breakdown-pct">{reportTotalSeconds ? Math.round((r.seconds / reportTotalSeconds) * 100) : 0}%</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="reports-divider" />
+
+            <div className="reports-head">
+              <p className="reports-heading">{t("completedTasksByCategory")}</p>
+            </div>
+
+            <div className="reports-controls-row">
+              <div className="reports-total" style={{ marginBottom: 0 }}>
+                <strong>{completedTotal}</strong> {t("tasksCompletedStrong")} {PERIOD_TRACKED_PHRASE[language][reportPeriod]}
+              </div>
+              <div className="chart-type-picker">
+                <button className="chart-type-chip" data-active={completedChartType === "bar"} onClick={() => setCompletedChartType("bar")}><BarChart3 size={13} /> {CHART_TYPE_LABELS[language].bar}</button>
+                <button className="chart-type-chip" data-active={completedChartType === "pie"} onClick={() => setCompletedChartType("pie")}><PieChartIcon size={13} /> {CHART_TYPE_LABELS[language].pie}</button>
+                <button className="chart-type-chip" data-active={completedChartType === "timeline"} onClick={() => setCompletedChartType("timeline")}><TrendingUp size={13} /> {CHART_TYPE_LABELS[language].timeline}</button>
+              </div>
+            </div>
+
+            {completedChartData.length === 0 ? (
+              <div className="empty-state">{t("noCompletedTasks")}</div>
+            ) : (
+              <>
+                {completedChartType === "bar" && (
+                  <ResponsiveContainer width="100%" height={Math.max(200, completedChartData.length * 46)}>
+                    <BarChart data={completedChartData} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 4 }}>
+                      <CartesianGrid stroke={chartGridColor} horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: chartTickColor }} axisLine={{ stroke: chartGridColor }} tickLine={false} />
+                      <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12, fill: chartTickColor }} axisLine={{ stroke: chartGridColor }} tickLine={false} />
+                      <Tooltip
+                        cursor={{ fill: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }}
+                        contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle}
+                        formatter={(value) => [value, t("completedCountTooltipLabel")]}
+                      />
+                      <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={22}>
+                        {completedChartData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+
+                {completedChartType === "pie" && (
+                  <ResponsiveContainer width="100%" height={340}>
+                    <PieChart>
+                      <Pie data={completedChartData} dataKey="count" nameKey="name" cx="50%" cy="50%" innerRadius={64} outerRadius={112} paddingAngle={2}>
+                        {completedChartData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle}
+                        formatter={(value, name, props) => [value, props.payload.name]}
+                      />
+                      <Legend formatter={(value) => <span style={{ color: chartTickColor, fontSize: 12.5 }}>{value}</span>} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+
+                {completedChartType === "timeline" && (
+                  completedTimeline ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={completedTimeline.rows} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+                        <CartesianGrid stroke={chartGridColor} vertical={false} />
+                        <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: chartTickColor }} axisLine={{ stroke: chartGridColor }} tickLine={false} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: chartTickColor }} axisLine={{ stroke: chartGridColor }} tickLine={false} />
+                        <Tooltip
+                          cursor={{ fill: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }}
+                          contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle}
+                          formatter={(value, name) => [value, catMeta[name]?.name || name]}
+                        />
+                        {completedTimeline.seriesKeys.map((key) => (
+                          <Bar key={key} dataKey={key} stackId="a" fill={catMeta[key]?.color || UNCATEGORIZED_COLOR} name={catMeta[key]?.name || key} radius={[2, 2, 0, 0]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="empty-state">{t("pickPeriodForTimeline")}</div>
+                  )
+                )}
+
+                <div className="breakdown-list">
+                  {completedRows.map((r) => (
+                    <div className="breakdown-row" key={r.id}>
+                      <span className="breakdown-dot" style={{ background: r.color }} />
+                      <span className="breakdown-name">{r.name}</span>
+                      <span className="breakdown-time">{pluralTasks(r.count, language)}</span>
+                      <span className="breakdown-pct">{completedTotal ? Math.round((r.count / completedTotal) * 100) : 0}%</span>
                     </div>
                   ))}
                 </div>
