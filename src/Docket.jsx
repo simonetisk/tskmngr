@@ -2315,17 +2315,6 @@ const signOut = async () => {
                     <div className="empty-state">{t("pickPeriodForTimeline")}</div>
                   )
                 )}
-
-                <div className="breakdown-list">
-                  {completedRows.map((r) => (
-                    <div className="breakdown-row" key={r.id}>
-                      <span className="breakdown-dot" style={{ background: r.color }} />
-                      <span className="breakdown-name">{r.name}</span>
-                      <span className="breakdown-time">{pluralTasks(r.count, language)}</span>
-                      <span className="breakdown-pct">{completedTotal ? Math.round((r.count / completedTotal) * 100) : 0}%</span>
-                    </div>
-                  ))}
-                </div>
               </>
             )}
 
