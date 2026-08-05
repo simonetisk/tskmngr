@@ -110,6 +110,33 @@ function generateDistinctColor(index) {
   return hslToHex(hue, 62, 55);
 }
 
+// A curated, modern palette (same family used across most modern SaaS UI) for the category
+// color picker's preset grid — distinct from generateDistinctColor, which is used for the
+// "auto-pick the next unused color" default when a category is first created.
+const MODERN_PALETTE = [
+  "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16", "#22C55E",
+  "#10B981", "#14B8A6", "#06B6D4", "#0EA5E9", "#3B82F6", "#6366F1",
+  "#8B5CF6", "#A855F7", "#D946EF", "#EC4899", "#F43F5E", "#78716C",
+];
+
+function hexToHue(hex) {
+  const clean = (hex || "").replace("#", "");
+  if (clean.length !== 6) return 0;
+  const r = parseInt(clean.substring(0, 2), 16) / 255;
+  const g = parseInt(clean.substring(2, 4), 16) / 255;
+  const b = parseInt(clean.substring(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return 0;
+  let hue;
+  if (max === r) hue = ((g - b) / d) % 6;
+  else if (max === g) hue = (b - r) / d + 2;
+  else hue = (r - g) / d + 4;
+  hue *= 60;
+  if (hue < 0) hue += 360;
+  return Math.round(hue);
+}
+
 function getPeriodRange(period) {
   const now = new Date();
   if (period === "all") return null;
@@ -745,6 +772,7 @@ export default function Docket() {
   const [editingCategoryName, setEditingCategoryName] = useState("");
   const [catMessage, setCatMessage] = useState("");
   const [dragCategoryId, setDragCategoryId] = useState(null);
+  const [colorPickerFor, setColorPickerFor] = useState(null);
 
   const t = (key, vars) => translate(language, key, vars);
 
@@ -1168,7 +1196,6 @@ const signOut = async () => {
   const tooltipContentStyle = { background: chartTooltipBg, border: `1px solid ${chartTooltipBorder}`, borderRadius: 6, fontSize: 12.5, color: chartTickColor };
   const tooltipItemStyle = { color: chartTickColor };
   const tooltipLabelStyle = { color: chartTickColor, fontWeight: 600, marginBottom: 2 };
-  const suggestedColors = Array.from({ length: 10 }, (_, i) => generateDistinctColor(categories.length + i));
 
   // ---- task card renderer (shared by Tasks list and This Week groups) ----
   const renderTaskCard = (task, listHasOpen) => {
@@ -1453,6 +1480,31 @@ const signOut = async () => {
       </div>
     );
   };
+
+  const renderColorPopover = (currentColor, onPick) => (
+    <>
+      <div className="backdrop-click" onClick={() => setColorPickerFor(null)} />
+      <div className="color-popover" onClick={(e) => e.stopPropagation()}>
+        <div className="color-popover-grid">
+          {MODERN_PALETTE.map((color) => (
+            <button
+              key={color} className="color-popover-swatch" data-active={currentColor.toLowerCase() === color.toLowerCase()}
+              style={{ background: color }} onClick={() => onPick(color)} aria-label={t("chooseColorAria", { color })}
+            />
+          ))}
+        </div>
+        <div className="color-popover-hue-row">
+          <span className="color-popover-preview" style={{ background: currentColor }} />
+          <input
+            type="range" min="0" max="359" step="1" className="hue-slider"
+            value={hexToHue(currentColor)}
+            onChange={(e) => onPick(hslToHex(+e.target.value, 62, 55))}
+          />
+        </div>
+        <p className="color-popover-hex">{currentColor.toUpperCase()}</p>
+      </div>
+    </>
+  );
 
   return (
     <div className="docket-root" data-theme={theme}>
@@ -1760,20 +1812,29 @@ const signOut = async () => {
         .cat-manage-row[data-dragging="true"] { opacity: 0.35; }
         .drag-handle { cursor: grab; color: var(--muted); display: flex; flex-shrink: 0; }
         .drag-handle:active { cursor: grabbing; }
-        .cat-color-input { width: 20px; height: 20px; padding: 0; border: none; border-radius: 50%; cursor: pointer; background: none; flex-shrink: 0; }
-        .cat-color-input::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
-        .cat-color-input::-webkit-color-swatch { border: 2px solid var(--card); border-radius: 50%; }
-        .cat-color-input::-moz-color-swatch { border: 2px solid var(--card); border-radius: 50%; }
+        .color-swatch-trigger { position: relative; width: 24px; height: 24px; border-radius: 50%; padding: 0; border: 2px solid var(--card); box-shadow: 0 0 0 1.5px var(--line-strong); cursor: pointer; flex-shrink: 0; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .color-swatch-trigger:hover { transform: scale(1.12); box-shadow: 0 0 0 2px var(--accent); }
+        .color-swatch-edit-badge { position: absolute; bottom: -3px; right: -3px; width: 13px; height: 13px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--line-strong); display: flex; align-items: center; justify-content: center; color: var(--ink-soft); }
+        .color-swatch-edit-badge svg { width: 8px; height: 8px; }
         .cat-manage-name { flex: 1; font-size: 13.5px; }
         .cat-manage-name-input { flex: 1; font-size: 13.5px; padding: 4px 6px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--paper); color: var(--ink); }
         .cat-manage-actions { display: flex; gap: 2px; }
 
         .cat-add-form { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
-        .cat-swatches { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; align-items: center; }
-        .swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
-        .swatch[data-active="true"] { border-color: var(--ink); }
-        .swatch-custom-wrap { width: 22px; height: 22px; border-radius: 50%; border: 2px dashed var(--line-strong); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .swatch-custom-wrap input { width: 26px; height: 26px; padding: 0; border: none; cursor: pointer; background: none; }
+        .cat-swatches { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0 12px; align-items: center; }
+        .color-picker-hint { font-size: 12px; color: var(--muted); }
+
+        .color-popover { position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; background: var(--card); border: 1px solid var(--line-strong); border-radius: 10px; padding: 14px; min-width: 220px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); }
+        .color-popover-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 14px; }
+        .color-popover-swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; padding: 0; transition: transform 0.12s ease; }
+        .color-popover-swatch:hover { transform: scale(1.15); }
+        .color-popover-swatch[data-active="true"] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--ink); }
+        .color-popover-hue-row { display: flex; align-items: center; gap: 10px; }
+        .color-popover-preview { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line-strong); }
+        .hue-slider { -webkit-appearance: none; appearance: none; flex: 1; height: 10px; border-radius: 6px; background: linear-gradient(to right, #FF0000, #FFFF00, #00FF00, #00FFFF, #0000FF, #FF00FF, #FF0000); outline: none; cursor: pointer; }
+        .hue-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        .hue-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        .color-popover-hex { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft); margin-top: 10px; text-align: center; }
         .cat-message { font-size: 11.5px; color: var(--pr-high); margin-top: 8px; }
         .cat-empty { font-size: 12.5px; color: var(--muted); padding: 10px 4px; }
 
@@ -2369,11 +2430,16 @@ const signOut = async () => {
                 data-dragging={dragCategoryId === c.id}
               >
                 <span className="drag-handle"><GripVertical size={14} /></span>
-                <input
-                  type="color" className="cat-color-input" value={c.color}
-                  onChange={(e) => updateCategoryColor(c.id, e.target.value)}
-                  aria-label={t("changeColorAria", { name: c.name })}
-                />
+                <div style={{ position: "relative" }}>
+                  <button
+                    className="color-swatch-trigger" style={{ background: c.color }}
+                    onClick={() => setColorPickerFor(colorPickerFor === c.id ? null : c.id)}
+                    aria-label={t("changeColorAria", { name: c.name })}
+                  >
+                    <span className="color-swatch-edit-badge"><Pencil size={8} /></span>
+                  </button>
+                  {colorPickerFor === c.id && renderColorPopover(c.color, (color) => updateCategoryColor(c.id, color))}
+                </div>
                 {editingCategoryId === c.id ? (
                   <input className="cat-manage-name-input" value={editingCategoryName} autoFocus
                     onChange={(e) => setEditingCategoryName(e.target.value)}
@@ -2394,12 +2460,17 @@ const signOut = async () => {
               <input className="docket-input" placeholder={t("categoryNamePlaceholder")} value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCategory()} />
               <div className="cat-swatches">
-                {suggestedColors.slice(0, 8).map((color) => (
-                  <button key={color} className="swatch" data-active={newCategoryColor === color} style={{ background: color }} onClick={() => setNewCategoryColor(color)} aria-label={t("chooseColorAria", { color })} />
-                ))}
-                <label className="swatch-custom-wrap" title={t("customColor")} style={{ background: newCategoryColor }}>
-                  <input type="color" value={newCategoryColor} onChange={(e) => setNewCategoryColor(e.target.value)} />
-                </label>
+                <div style={{ position: "relative" }}>
+                  <button
+                    className="color-swatch-trigger" style={{ background: newCategoryColor }}
+                    onClick={() => setColorPickerFor(colorPickerFor === "new" ? null : "new")}
+                    aria-label={t("customColor")}
+                  >
+                    <span className="color-swatch-edit-badge"><Pencil size={8} /></span>
+                  </button>
+                  {colorPickerFor === "new" && renderColorPopover(newCategoryColor, setNewCategoryColor)}
+                </div>
+                <span className="color-picker-hint">{t("customColor")}</span>
               </div>
               <button className="add-btn" onClick={addCategory} disabled={!newCategoryName.trim()}><Plus size={14} /> {t("addCategory")}</button>
               {catMessage && <p className="cat-message">{catMessage}</p>}
