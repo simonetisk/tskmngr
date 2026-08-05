@@ -7,7 +7,7 @@ import {
   AlertCircle, Sun, Moon, Download, Upload, StickyNote,
   Play, Pause, Square, Tag, Layers, Clock, Pencil, BarChart3, CheckSquare,
   LogIn, LogOut, User, Cloud, HardDrive, TrendingUp, PieChart as PieChartIcon,
-  CheckCircle2, RotateCcw, ArrowLeft, GripVertical, Hash, Search, Flag,
+  CheckCircle2, RotateCcw, ArrowLeft, GripVertical, Hash, Search, Flag, Sparkles,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -40,6 +40,9 @@ function isNotFoundError(e) {
   const msg = ((e && e.message) || String(e) || "").toLowerCase();
   return msg.includes("not found") || msg.includes("no such") || msg.includes("does not exist") || msg.includes("404");
 }
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function chance(p) { return Math.random() < p; }
+function pick(arr) { return arr[randInt(0, arr.length - 1)]; }
 
 function formatDateYMD(ts) {
   if (!ts) return "";
@@ -57,11 +60,11 @@ function formatDateTimeYMD(ts) {
   return `${formatDateYMD(ts)} ${hh}:${mm}`;
 }
 
-function formatDate(iso, lang) {
+function formatDate(iso) {
   if (!iso) return null;
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d)) return null;
-  return d.toLocaleDateString(lang === "sv" ? "sv-SE" : "en-US", { month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 function isOverdue(iso, done) {
   if (!iso || done) return false;
@@ -69,24 +72,22 @@ function isOverdue(iso, done) {
   const d = new Date(iso + "T00:00:00");
   return d < today;
 }
-function formatDuration(totalSeconds, lang) {
+function formatDuration(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds || 0));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  const hu = lang === "sv" ? "t" : "h";
-  if (h > 0) return `${h}${hu} ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m`;
   return `${sec}s`;
 }
-function formatLeadTime(ms, lang) {
+function formatLeadTime(ms) {
   const totalMinutes = Math.max(0, Math.round((ms || 0) / 60000));
   const days = Math.floor(totalMinutes / 1440);
   const hours = Math.floor((totalMinutes % 1440) / 60);
   const mins = totalMinutes % 60;
-  const hu = lang === "sv" ? "t" : "h";
-  if (days > 0) return `${days}d ${hours}${hu}`;
-  if (hours > 0) return `${hours}${hu} ${mins}m`;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
 }
 function sessionSeconds(task) { return (task.sessions || []).reduce((sum, s) => sum + (s.seconds || 0), 0); }
@@ -130,13 +131,13 @@ function getPeriodRange(period) {
   return { start, end };
 }
 
-function categoryMeta(categories, lang) {
-  const map = { __uncategorized__: { name: translate(lang, "uncategorized"), color: UNCATEGORIZED_COLOR } };
+function categoryMeta(categories) {
+  const map = { __uncategorized__: { name: "Uncategorized", color: UNCATEGORIZED_COLOR } };
   categories.forEach((c) => { map[c.id] = { name: c.name, color: c.color }; });
   return map;
 }
 
-function computeCategoryTotals(tasks, categories, period, lang) {
+function computeCategoryTotals(tasks, categories, period) {
   const range = getPeriodRange(period);
   const totals = {};
   tasks.forEach((t) => {
@@ -149,15 +150,15 @@ function computeCategoryTotals(tasks, categories, period, lang) {
       totals[key] = (totals[key] || 0) + (s.seconds || 0);
     });
   });
-  const meta = categoryMeta(categories, lang);
+  const meta = categoryMeta(categories);
   const rows = Object.entries(totals).map(([id, seconds]) => ({
-    id, name: meta[id]?.name || translate(lang, "deletedCategory"), color: meta[id]?.color || UNCATEGORIZED_COLOR, seconds,
+    id, name: meta[id]?.name || "Deleted category", color: meta[id]?.color || UNCATEGORIZED_COLOR, seconds,
   }));
   rows.sort((a, b) => b.seconds - a.seconds);
   return rows;
 }
 
-function computeLeadTimeByCategory(tasks, categories, period, lang) {
+function computeLeadTimeByCategory(tasks, categories, period) {
   const range = getPeriodRange(period);
   const sums = {};
   tasks.forEach((t) => {
@@ -172,39 +173,36 @@ function computeLeadTimeByCategory(tasks, categories, period, lang) {
     sums[key].total += lead;
     sums[key].count += 1;
   });
-  const meta = categoryMeta(categories, lang);
+  const meta = categoryMeta(categories);
   const rows = Object.entries(sums).map(([id, { total, count }]) => ({
-    id, name: meta[id]?.name || translate(lang, "deletedCategory"), color: meta[id]?.color || UNCATEGORIZED_COLOR,
+    id, name: meta[id]?.name || "Deleted category", color: meta[id]?.color || UNCATEGORIZED_COLOR,
     avgMs: total / count, count,
   }));
   rows.sort((a, b) => a.avgMs - b.avgMs);
   return rows;
 }
 
-function buildTimelineData(tasks, categories, period, lang) {
+function buildTimelineData(tasks, categories, period) {
   const range = getPeriodRange(period);
   if (!range) return null;
   const buckets = [];
   if (period === "week") {
-    const labels = lang === "sv" ? ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     for (let i = 0; i < 7; i++) {
       const d = new Date(range.start); d.setDate(range.start.getDate() + i);
       const end = new Date(d); end.setDate(d.getDate() + 1);
       buckets.push({ label: labels[i], start: d, end });
     }
   } else if (period === "month") {
-    const weekWord = lang === "sv" ? "Vecka" : "Week";
     let cur = new Date(range.start), idx = 1;
     while (cur < range.end) {
       const end = new Date(cur); end.setDate(end.getDate() + 7);
       const cappedEnd = end > range.end ? range.end : end;
-      buckets.push({ label: `${weekWord} ${idx}`, start: new Date(cur), end: cappedEnd });
+      buckets.push({ label: `Week ${idx}`, start: new Date(cur), end: cappedEnd });
       cur = cappedEnd; idx++;
     }
   } else {
-    const labels = lang === "sv"
-      ? ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"]
-      : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     for (let m = 0; m < 12; m++) {
       buckets.push({ label: labels[m], start: new Date(range.start.getFullYear(), m, 1), end: new Date(range.start.getFullYear(), m + 1, 1) });
     }
@@ -271,6 +269,130 @@ function addToList(list, raw) {
   return [...list, val];
 }
 
+// ---------------------------------------------------------------------------
+// Demo data generation
+// ---------------------------------------------------------------------------
+
+function seedCategories() {
+  const names = ["Development", "Design", "Meetings", "Budgeting", "Admin", "Marketing", "Support", "Research"];
+  const ids = ["cat-development", "cat-design", "cat-meetings", "cat-budgeting", "cat-admin", "cat-marketing", "cat-support", "cat-research"];
+  return names.map((name, i) => ({ id: ids[i], name, color: generateDistinctColor(i) }));
+}
+
+const TITLE_POOL = {
+  "cat-development": [
+    "Fix login race condition", "Refactor payment service", "Upgrade CI pipeline", "Write unit tests for API layer",
+    "Investigate memory leak", "Set up staging environment", "Migrate to new ORM", "Code review: search feature",
+    "Optimize database queries", "Build feature flag system", "Patch security vulnerability", "Pair on onboarding bug",
+    "Clean up legacy endpoints", "Add rate limiting", "Spike: websocket support", "Refactor authentication module",
+  ],
+  "cat-design": [
+    "Redesign settings page", "Create icon set", "Update design tokens", "Prototype mobile nav", "Review accessibility contrast",
+    "Draft empty states", "Explore dark mode palette", "Design onboarding illustrations", "Update component library",
+    "User test new checkout flow", "Sketch dashboard layout", "Refine typography scale", "Design email templates",
+  ],
+  "cat-meetings": [
+    "Weekly team sync", "1:1 with manager", "Sprint planning", "Retro notes", "Client check-in call", "All-hands prep",
+    "Vendor call", "Interview candidate", "Roadmap review", "Stakeholder update meeting", "Cross-team sync", "Board prep call",
+  ],
+  "cat-budgeting": [
+    "Q3 budget review", "Reconcile expense reports", "Vendor invoice audit", "Update forecast model", "Renew software licenses",
+    "Review travel expenses", "Prepare cost breakdown", "Approve purchase orders", "Payroll reconciliation", "Tax document prep",
+  ],
+  "cat-admin": [
+    "Clean up shared drive", "Update team wiki", "Onboard new hire paperwork", "Renew domain registration", "Archive old projects",
+    "Update contact list", "File expense report", "Schedule equipment maintenance", "Organize inbox", "Update password vault",
+  ],
+  "cat-marketing": [
+    "Draft newsletter", "Plan social calendar", "Write blog post", "Update landing page copy", "Analyze campaign metrics",
+    "Design ad creative", "Coordinate webinar", "SEO audit", "Customer case study interview", "Refresh brand guidelines",
+  ],
+  "cat-support": [
+    "Triage support queue", "Investigate customer bug report", "Update help docs", "Respond to escalation", "Review CSAT results",
+    "Onboard new support rep", "Write FAQ entry", "Audit ticket backlog", "Fix broken help center link", "Follow up on refund request",
+  ],
+  "cat-research": [
+    "Competitor analysis", "User interview synthesis", "Survey draft", "Market sizing exercise", "Literature review",
+    "A/B test results write-up", "Persona refresh", "Usability test plan", "Analyze churn data", "Explore new tooling",
+  ],
+};
+const CHECKLIST_POOL = ["Draft outline", "Get feedback", "Finalize details", "Share with team", "Follow up", "Review requirements", "Test changes", "Update documentation", "Get sign-off", "Schedule follow-up"];
+const TAG_POOL = ["urgent", "blocked", "waiting-on-review", "quick-win", "client-facing", "internal", "follow-up", "needs-input", "low-effort", "stretch-goal"];
+const NOTE_POOL = [
+  "Waiting on feedback before moving forward.",
+  "Blocked on access to the staging environment.",
+  "Discussed in standup — low priority for now.",
+  "Needs another pass before it's ready for review.",
+  "Follow up with the team next week.",
+  "Double check requirements with stakeholder.",
+];
+
+function seedTasks() {
+  const catIds = seedCategories().map((c) => c.id);
+  const RANGE_START = new Date(2026, 5, 1).getTime();
+  const RANGE_END = new Date(2026, 8, 30).getTime();
+  const NOW = Date.now();
+  const createdMax = Math.max(RANGE_START + 86400000, Math.min(NOW, RANGE_END));
+  const COUNT = 220;
+  const tasks = [];
+
+  for (let i = 0; i < COUNT; i++) {
+    const catId = pick(catIds);
+    const pool = TITLE_POOL[catId] || TITLE_POOL["cat-admin"];
+    const title = pick(pool);
+    const pr = Math.random();
+    const priority = pr < 0.22 ? "high" : pr < 0.72 ? "medium" : "low";
+    const createdAt = Math.round(RANGE_START + Math.random() * (createdMax - RANGE_START));
+
+    let deadline = "";
+    if (chance(0.75)) {
+      const deadlineTs = Math.round(createdAt + Math.random() * Math.max(1, RANGE_END - createdAt));
+      deadline = formatDateYMD(deadlineTs);
+    }
+
+    const daysSinceCreated = (NOW - createdAt) / 86400000;
+    const doneProb = Math.max(0, Math.min(0.65, daysSinceCreated / 30));
+    let done = false, completedAt = null;
+    if (createdAt < NOW && chance(doneProb)) {
+      done = true;
+      const windowEnd = Math.min(NOW, deadline ? new Date(deadline + "T23:59:59").getTime() + 5 * 86400000 : NOW);
+      const compTs = Math.round(createdAt + Math.random() * Math.max(3600000, windowEnd - createdAt));
+      completedAt = Math.min(NOW, Math.max(createdAt + 1800000, compTs));
+    }
+
+    const sessionWindowEnd = done ? completedAt : Math.min(NOW, deadline ? new Date(deadline + "T23:59:59").getTime() : NOW);
+    const numSessions = done ? randInt(1, 4) : (chance(0.45) ? randInt(1, 3) : 0);
+    const sessions = [];
+    for (let s = 0; s < numSessions; s++) {
+      if (sessionWindowEnd <= createdAt) break;
+      const sTs = Math.round(createdAt + Math.random() * (sessionWindowEnd - createdAt));
+      sessions.push({ id: uid(), seconds: randInt(900, 14400), date: formatDateYMD(sTs), source: chance(0.6) ? "timer" : "manual" });
+    }
+
+    const checklist = [];
+    if (chance(0.5)) {
+      const n = randInt(1, 4);
+      for (let c = 0; c < n; c++) checklist.push({ id: uid(), text: pick(CHECKLIST_POOL), done: done ? true : chance(0.35) });
+    }
+
+    const tags = [];
+    if (chance(0.4)) {
+      const shuffled = [...TAG_POOL].sort(() => Math.random() - 0.5);
+      const n = randInt(1, 2);
+      for (let ti = 0; ti < n; ti++) tags.push(shuffled[ti]);
+    }
+
+    const notes = chance(0.3) ? pick(NOTE_POOL) : "";
+
+    tasks.push({
+      id: uid(), title, priority, deadline, done, createdAt, completedAt,
+      notes, category: catId, tags, sessions,
+      timerState: "idle", timerStartedAt: null, checklist,
+    });
+  }
+  return tasks;
+}
+
 function normalizeImportedPayload(raw) {
   const rawTasks = Array.isArray(raw) ? raw : Array.isArray(raw?.tasks) ? raw.tasks : null;
   if (!rawTasks) return null;
@@ -300,342 +422,10 @@ function normalizeImportedPayload(raw) {
   return { tasks, categories };
 }
 
-// ---------------------------------------------------------------------------
-// Localization
-// ---------------------------------------------------------------------------
-
-const STRINGS = {
-  en: {
-    subtitle: "Today's working list",
-    searchPlaceholder: "Search everything…",
-    clearSearch: "Clear search",
-    tabTasks: "Tasks",
-    tabFocus: "This Week",
-    tabNew: "New Task",
-    tabReports: "Reports",
-    dataBtn: "Data",
-    toggleDarkMode: "Toggle dark mode",
-    toggleLanguage: "Toggle language",
-    signInGoogle: "Sign in with Google",
-    signOut: "Sign out",
-    signedInAs: "Signed in as {{name}}",
-    cloudLabel: "Cloud",
-    localLabel: "Saved locally on this device",
-    saveToFile: "Save to a file",
-    loadFromFile: "Load from a file",
-    clearAllData: "Clear all data",
-    understandUndo: "I understand this can't be undone.",
-    cancel: "Cancel",
-    permanentlyClear: "Permanently clear",
-    loading: "Loading docket…",
-
-    newEntryHeading: "New entry",
-    newEntrySub: "Add a task with as much detail as you'd like — you can always fill in more later.",
-    backToTasks: "Back to tasks",
-    fieldTask: "Task",
-    taskTitlePlaceholder: "What needs doing?",
-    fieldNotes: "Notes",
-    notesPlaceholderNew: "Context, links, or anything worth remembering…",
-    notesPlaceholderTask: "Jot down context, links, or anything worth remembering…",
-    fieldChecklist: "Checklist",
-    removeItem: "Remove item",
-    checklistAddPlaceholder: "Add a checklist item…",
-    addChecklistItem: "Add checklist item",
-    fieldPriority: "Priority",
-    priorityLow: "Low",
-    priorityMedium: "Medium",
-    priorityHigh: "High",
-    fieldDeadline: "Deadline",
-    fieldCategory: "Category",
-    manage: "Manage",
-    noCategoriesHint: "No categories yet — use Manage above to add one.",
-    fieldTags: "Tags",
-    tagAddPlaceholder: "Add a tag…",
-    addTag: "Add tag",
-    removeTagAria: "Remove {{tag}}",
-    addToDocket: "Add to docket",
-
-    overdue: "Overdue",
-    dueThisWeek: "Due this week",
-    highNoDeadline: "High priority, no deadline",
-    overdueEmpty: "Nothing overdue — nice work.",
-    dueThisWeekEmpty: "Nothing due this week.",
-    noneRightNow: "None right now.",
-
-    status: "Status",
-    all: "All",
-    active: "Active",
-    completed: "Completed",
-    uncategorized: "Uncategorized",
-    deletedCategory: "Deleted category",
-    sortBy: "Sort by",
-    sortPriority: "Priority",
-    sortDeadline: "Deadline",
-    sortDateAdded: "Date added",
-    tags: "Tags",
-    emptyStatePrefix: "Nothing here. ",
-    emptyStateLink: "Add a task",
-    emptyStateSuffix: ", or adjust filters to see more of the docket.",
-
-    checkedSuffix: "checked",
-    startTimer: "Start timer",
-    pauseTimer: "Pause timer",
-    done: "Done",
-    markComplete: "Mark complete",
-    markNotComplete: "Mark as not complete",
-    created: "Created",
-    completedLabel: "Completed",
-    leadTime: "Lead time",
-    markItemUndone: "Mark item undone",
-    markItemDone: "Mark item done",
-    removeChecklistItem: "Remove checklist item",
-    timeTracking: "Time tracking",
-    totalLogged: "Total logged",
-    runningLabel: "running",
-    start: "Start",
-    resume: "Resume",
-    pause: "Pause",
-    hours: "Hours",
-    minutes: "Minutes",
-    date: "Date",
-    logTime: "Log time",
-    addTimeManually: "+ Add time manually",
-    removeEntry: "Remove entry",
-    sourceManual: "manual",
-    sourceTracked: "tracked",
-    removeCatAria: "Remove {{name}}",
-    addCategory: "Add category",
-    change: "Change",
-    noCategoriesYet: "No categories yet.",
-    noOtherCategories: "No other categories.",
-    deleteTask: "Delete task",
-    deleteConfirmText: "Delete this task? This can't be undone.",
-    delete: "Delete",
-
-    timeByCategory: "Time by category",
-    trackedStrong: "tracked",
-    noTrackedTime: "No tracked time in this period yet. Start a timer or log time manually on a task.",
-    timeTooltipLabel: "Time",
-    avgLeadTimeByCategory: "Average lead time by category",
-    leadTimeCaptionPrefix: "Time from creating a task to marking it complete, for tasks finished",
-    pickPeriodForTimeline: "Pick Week, Month, or Year above to see the timeline view.",
-
-    categoriesTitle: "Categories",
-    categoriesSub: "Manage the categories you can assign to tasks. Drag the handle to reorder — the order shown here is used everywhere.",
-    noCategoriesAddFirst: "No categories yet — add your first one below.",
-    changeColorAria: "Change color for {{name}}",
-    renameAria: "Rename {{name}}",
-    deleteAria: "Delete {{name}}",
-    newCategory: "New category",
-    categoryNamePlaceholder: "e.g. Budgeting, Development…",
-    chooseColorAria: "Choose color {{color}}",
-    categoryExists: "That category already exists.",
-    close: "Close",
-    customColor: "Custom color",
-
-    exportedMsg: "Exported to a file on your computer.",
-    exportFailedMsg: "Couldn't export right now.",
-    importBadFileMsg: "That file doesn't look like a Docket export.",
-    importReadFailedMsg: "Couldn't read that file.",
-    signInFailedMsg: "Sign-in failed — check the console for details.",
-    signedOutMsg: "Signed out — back to your local tasks.",
-    taskAddedMsg: "Task added.",
-    saveErrorFallback: "Changes aren't saving right now.",
-  },
-  sv: {
-    subtitle: "Dagens arbetslista",
-    searchPlaceholder: "Sök i allt…",
-    clearSearch: "Rensa sökning",
-    tabTasks: "Uppgifter",
-    tabFocus: "Den här veckan",
-    tabNew: "Ny uppgift",
-    tabReports: "Rapporter",
-    dataBtn: "Data",
-    toggleDarkMode: "Växla mörkt läge",
-    toggleLanguage: "Byt språk",
-    signInGoogle: "Logga in med Google",
-    signOut: "Logga ut",
-    signedInAs: "Inloggad som {{name}}",
-    cloudLabel: "Moln",
-    localLabel: "Sparas lokalt på den här enheten",
-    saveToFile: "Spara till fil",
-    loadFromFile: "Läs in från fil",
-    clearAllData: "Rensa all data",
-    understandUndo: "Jag förstår att detta inte kan ångras.",
-    cancel: "Avbryt",
-    permanentlyClear: "Rensa permanent",
-    loading: "Laddar Docket…",
-
-    newEntryHeading: "Ny post",
-    newEntrySub: "Lägg till en uppgift med så mycket detaljer du vill — du kan alltid fylla i mer senare.",
-    backToTasks: "Tillbaka till uppgifter",
-    fieldTask: "Uppgift",
-    taskTitlePlaceholder: "Vad behöver göras?",
-    fieldNotes: "Anteckningar",
-    notesPlaceholderNew: "Sammanhang, länkar eller annat värt att komma ihåg…",
-    notesPlaceholderTask: "Skriv ner sammanhang, länkar eller annat värt att komma ihåg…",
-    fieldChecklist: "Checklista",
-    removeItem: "Ta bort objekt",
-    checklistAddPlaceholder: "Lägg till en checklistepunkt…",
-    addChecklistItem: "Lägg till checklistepunkt",
-    fieldPriority: "Prioritet",
-    priorityLow: "Låg",
-    priorityMedium: "Medel",
-    priorityHigh: "Hög",
-    fieldDeadline: "Deadline",
-    fieldCategory: "Kategori",
-    manage: "Hantera",
-    noCategoriesHint: "Inga kategorier än — använd Hantera ovan för att lägga till en.",
-    fieldTags: "Taggar",
-    tagAddPlaceholder: "Lägg till en tagg…",
-    addTag: "Lägg till tagg",
-    removeTagAria: "Ta bort {{tag}}",
-    addToDocket: "Lägg till i Docket",
-
-    overdue: "Försenade",
-    dueThisWeek: "Förfaller denna vecka",
-    highNoDeadline: "Hög prioritet, ingen deadline",
-    overdueEmpty: "Inget försenat — bra jobbat!",
-    dueThisWeekEmpty: "Inget som förfaller denna vecka.",
-    noneRightNow: "Inget just nu.",
-
-    status: "Status",
-    all: "Alla",
-    active: "Aktiva",
-    completed: "Slutförda",
-    uncategorized: "Utan kategori",
-    deletedCategory: "Borttagen kategori",
-    sortBy: "Sortera efter",
-    sortPriority: "Prioritet",
-    sortDeadline: "Deadline",
-    sortDateAdded: "Datum tillagd",
-    tags: "Taggar",
-    emptyStatePrefix: "Inget här. ",
-    emptyStateLink: "Lägg till en uppgift",
-    emptyStateSuffix: ", eller justera filtren för att se mer av Docket.",
-
-    checkedSuffix: "markerade",
-    startTimer: "Starta timer",
-    pauseTimer: "Pausa timer",
-    done: "Klar",
-    markComplete: "Markera som klar",
-    markNotComplete: "Markera som ej klar",
-    created: "Skapad",
-    completedLabel: "Slutförd",
-    leadTime: "Ledtid",
-    markItemUndone: "Markera objekt som ej klart",
-    markItemDone: "Markera objekt som klart",
-    removeChecklistItem: "Ta bort checklistepunkt",
-    timeTracking: "Tidsspårning",
-    totalLogged: "Totalt loggat",
-    runningLabel: "pågår",
-    start: "Starta",
-    resume: "Återuppta",
-    pause: "Pausa",
-    hours: "Timmar",
-    minutes: "Minuter",
-    date: "Datum",
-    logTime: "Logga tid",
-    addTimeManually: "+ Lägg till tid manuellt",
-    removeEntry: "Ta bort post",
-    sourceManual: "manuellt",
-    sourceTracked: "spårat",
-    removeCatAria: "Ta bort {{name}}",
-    addCategory: "Lägg till kategori",
-    change: "Byt",
-    noCategoriesYet: "Inga kategorier än.",
-    noOtherCategories: "Inga andra kategorier.",
-    deleteTask: "Ta bort uppgift",
-    deleteConfirmText: "Ta bort den här uppgiften? Detta kan inte ångras.",
-    delete: "Ta bort",
-
-    timeByCategory: "Tid per kategori",
-    trackedStrong: "spårat",
-    noTrackedTime: "Ingen spårad tid under denna period än. Starta en timer eller logga tid manuellt på en uppgift.",
-    timeTooltipLabel: "Tid",
-    avgLeadTimeByCategory: "Genomsnittlig ledtid per kategori",
-    leadTimeCaptionPrefix: "Tiden från att en uppgift skapas till att den markeras som klar, för uppgifter som slutförts",
-    pickPeriodForTimeline: "Välj Vecka, Månad eller År ovan för att se tidslinjen.",
-
-    categoriesTitle: "Kategorier",
-    categoriesSub: "Hantera kategorierna du kan tilldela uppgifter. Dra i handtaget för att ändra ordning — ordningen som visas här används överallt.",
-    noCategoriesAddFirst: "Inga kategorier än — lägg till din första nedan.",
-    changeColorAria: "Ändra färg för {{name}}",
-    renameAria: "Byt namn på {{name}}",
-    deleteAria: "Ta bort {{name}}",
-    newCategory: "Ny kategori",
-    categoryNamePlaceholder: "t.ex. Budget, Utveckling…",
-    chooseColorAria: "Välj färg {{color}}",
-    categoryExists: "Den kategorin finns redan.",
-    close: "Stäng",
-    customColor: "Anpassad färg",
-
-    exportedMsg: "Exporterad till en fil på din dator.",
-    exportFailedMsg: "Kunde inte exportera just nu.",
-    importBadFileMsg: "Den filen ser inte ut som en Docket-export.",
-    importReadFailedMsg: "Kunde inte läsa den filen.",
-    signInFailedMsg: "Inloggningen misslyckades — se konsolen för detaljer.",
-    signedOutMsg: "Utloggad — tillbaka till dina lokala uppgifter.",
-    taskAddedMsg: "Uppgift tillagd.",
-    saveErrorFallback: "Ändringar sparas inte just nu.",
-  },
-};
-
-const PERIOD_LABELS = {
-  en: { week: "Week", month: "Month", year: "Year", all: "All time" },
-  sv: { week: "Vecka", month: "Månad", year: "År", all: "Alltid" },
-};
-const PERIOD_TRACKED_PHRASE = {
-  en: { week: "this week", month: "this month", year: "this year", all: "in total" },
-  sv: { week: "denna vecka", month: "denna månad", year: "detta år", all: "totalt" },
-};
-const PERIOD_FINISHED_PHRASE = {
-  en: { week: "this week", month: "this month", year: "this year", all: "at any time" },
-  sv: { week: "denna vecka", month: "denna månad", year: "detta år", all: "när som helst" },
-};
-const CHART_TYPE_LABELS = {
-  en: { bar: "Bar", pie: "Pie", timeline: "Timeline" },
-  sv: { bar: "Stapel", pie: "Cirkel", timeline: "Tidslinje" },
-};
-
-function translate(lang, key, vars) {
-  let str = (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key;
-  if (vars) Object.keys(vars).forEach((k) => { str = str.split(`{{${k}}}`).join(vars[k]); });
-  return str;
-}
-function pluralTasks(count, lang) {
-  if (lang === "sv") return `${count} ${count === 1 ? "uppgift" : "uppgifter"}`;
-  return `${count} ${count === 1 ? "task" : "tasks"}`;
-}
-function pluralCategories(count, lang) {
-  if (lang === "sv") return `${count} ${count === 1 ? "kategori" : "kategorier"}`;
-  return `${count} ${count === 1 ? "category" : "categories"}`;
-}
-function importedMessage(lang, taskCount, catCount, isCloud) {
-  if (lang === "sv") {
-    const modePhrase = isCloud ? "din molnlista" : "din lokala lista";
-    return `Importerade ${pluralTasks(taskCount, lang)} och ${pluralCategories(catCount, lang)} till ${modePhrase}.`;
-  }
-  const modePhrase = isCloud ? "cloud" : "local";
-  return `Imported ${pluralTasks(taskCount, lang)} and ${pluralCategories(catCount, lang)} into your ${modePhrase} list.`;
-}
-function clearConfirmText(lang, isCloud) {
-  if (lang === "sv") return isCloud ? "Detta raderar permanent alla uppgifter och kategorier i din molnlista." : "Detta raderar permanent alla uppgifter och kategorier i din lokala lista.";
-  return `This permanently deletes every task and category in this ${isCloud ? "cloud" : "local"} list.`;
-}
-function clearedMessage(lang, isCloud) {
-  if (lang === "sv") return isCloud ? "Rensade alla uppgifter och kategorier i molnet." : "Rensade alla lokala uppgifter och kategorier.";
-  return `Cleared all ${isCloud ? "cloud" : "local"} tasks and categories.`;
-}
-function signedInMessage(lang, name) {
-  return lang === "sv" ? `Inloggad som ${name}.` : `Signed in as ${name}.`;
-}
-
 export default function Docket() {
   const [tasks, setTasks] = useState([]);
   const [categories, setCategories] = useState([]);
   const [theme, setTheme] = useState("dark");
-  const [language, setLanguage] = useState("sv");
   const [activeView, setActiveView] = useState("tasks");
   const [reportPeriod, setReportPeriod] = useState("month");
   const [chartType, setChartType] = useState("bar");
@@ -692,8 +482,6 @@ export default function Docket() {
   const [catMessage, setCatMessage] = useState("");
   const [dragCategoryId, setDragCategoryId] = useState(null);
 
-  const t = (key, vars) => translate(language, key, vars);
-
   const tasksKeyFor = (acc) => (acc ? `cloud:${acc.id}:tasks` : TASKS_KEY);
   const categoriesKeyFor = (acc) => (acc ? `cloud:${acc.id}:categories` : CATEGORIES_KEY);
 
@@ -720,13 +508,13 @@ export default function Docket() {
           timerState: t.timerState === "running" ? "paused" : (t.timerState || "idle"),
         })) : []);
       } else {
-        setTasks([]);
+        setTasks(acc ? [] : seedTasks());
       }
       if (catRes && catRes.value) {
         const parsed = JSON.parse(catRes.value);
         setCategories(Array.isArray(parsed) ? parsed : []);
       } else {
-        setCategories([]);
+        setCategories(acc ? [] : seedCategories());
       }
       if (realError) {
         setStorageOk(false);
@@ -737,8 +525,8 @@ export default function Docket() {
       }
     } catch (e) {
       console.error("Docket: failed to load data", e);
-      setTasks([]);
-      setCategories([]);
+      setTasks(acc ? [] : seedTasks());
+      setCategories(acc ? [] : seedCategories());
       setStorageOk(false);
       setStorageError(`Load failed: ${errMsg(e)}`);
     } finally {
@@ -754,7 +542,6 @@ export default function Docket() {
       if (settingsRes && settingsRes.value) {
         const s = JSON.parse(settingsRes.value);
         if (s.theme === "light" || s.theme === "dark") setTheme(s.theme);
-        if (s.language === "en" || s.language === "sv") setLanguage(s.language);
       }
     } catch (e) {
       if (!isNotFoundError(e)) console.error("Docket: failed to load settings", e);
@@ -801,14 +588,14 @@ export default function Docket() {
     if (!loadedRef.current) return;
     (async () => {
       try {
-        await appStorage.set(SETTINGS_KEY, JSON.stringify({ theme, language }), false);
+        await appStorage.set(SETTINGS_KEY, JSON.stringify({ theme }), false);
       } catch (e) {
         console.error("Docket: failed to save settings", e);
         setStorageOk(false);
         setStorageError(`Save failed: ${errMsg(e)}`);
       }
     })();
-  }, [theme, language]);
+  }, [theme]);
 
   useEffect(() => {
     if (!dataMessage) return;
@@ -831,10 +618,10 @@ const signIn = async () => {
     const acc = { id: user.uid, name: user.displayName || user.email };
     setAccount(acc);
     await loadForAccount(acc);
-    setDataMessage(signedInMessage(language, acc.name));
+    setDataMessage(`Signed in as ${acc.name}.`);
   } catch (e) {
     console.error("Google sign-in failed", e);
-    setDataMessage(t("signInFailedMsg"));
+    setDataMessage("Sign-in failed — check the console for details.");
   }
 };
 const signOut = async () => {
@@ -842,7 +629,7 @@ const signOut = async () => {
   setAccount(null);
   setAccountMenuOpen(false);
   await loadForAccount(null);
-  setDataMessage(t("signedOutMsg"));
+  setDataMessage("Signed out — back to your local tasks.");
 };
 
   // ---- task operations -----------------------------------------------
@@ -862,7 +649,7 @@ const signOut = async () => {
     setExpanded((prev) => new Set(prev).add(task.id));
     setEverOpened((prev) => new Set(prev).add(task.id));
     setActiveView("tasks");
-    setDataMessage(t("taskAddedMsg"));
+    setDataMessage("Task added.");
   }, [newTitle, newPriority, newDeadline, newCategory, newNotes, newChecklist, newTags]);
 
   const addNewChecklistDraftItem = () => {
@@ -966,7 +753,7 @@ const signOut = async () => {
   const addCategory = () => {
     const name = newCategoryName.trim();
     if (!name) return;
-    if (categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) { setCatMessage(t("categoryExists")); return; }
+    if (categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) { setCatMessage("That category already exists."); return; }
     setCategories((prev) => [...prev, { id: uid(), name, color: newCategoryColor }]);
     setNewCategoryName("");
     setNewCategoryColor(generateDistinctColor(categories.length + 1));
@@ -1007,15 +794,15 @@ const signOut = async () => {
   // ---- data: export / import / clear ------------------------------------
   const exportData = () => {
     try {
-      const payload = { exportedAt: new Date().toISOString(), mode: account ? "cloud" : "local", tasks, categories };
+      const payload = { exportedAt: new Date().toISOString(), mode: account ? "cloud-demo" : "local", tasks, categories };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = `docket-export-${todayISO()}.json`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setDataMessage(t("exportedMsg"));
-    } catch (e) { setDataMessage(t("exportFailedMsg")); }
+      setDataMessage("Exported to a file on your computer.");
+    } catch (e) { setDataMessage("Couldn't export right now."); }
   };
   const triggerImport = () => fileInputRef.current && fileInputRef.current.click();
   const handleImportFile = (e) => {
@@ -1029,10 +816,10 @@ const signOut = async () => {
         if (!result) throw new Error("bad shape");
         setTasks(result.tasks);
         setCategories(result.categories);
-        setDataMessage(importedMessage(language, result.tasks.length, result.categories.length, !!account));
-      } catch (err) { setDataMessage(t("importBadFileMsg")); }
+        setDataMessage(`Imported ${result.tasks.length} task${result.tasks.length === 1 ? "" : "s"} and ${result.categories.length} categor${result.categories.length === 1 ? "y" : "ies"} into your ${account ? "cloud (demo)" : "local"} list.`);
+      } catch (err) { setDataMessage("That file doesn't look like a Docket export."); }
     };
-    reader.onerror = () => setDataMessage(t("importReadFailedMsg"));
+    reader.onerror = () => setDataMessage("Couldn't read that file.");
     reader.readAsText(file);
     e.target.value = "";
   };
@@ -1041,7 +828,15 @@ const signOut = async () => {
   const confirmClear = () => {
     setTasks([]); setCategories([]); setExpanded(new Set());
     setClearArmed(false); setClearChecked(false); setDataMenuOpen(false);
-    setDataMessage(clearedMessage(language, !!account));
+    setDataMessage(`Cleared all ${account ? "cloud (demo)" : "local"} tasks and categories.`);
+  };
+  const loadSampleData = () => {
+    const sampleTasks = seedTasks();
+    setTasks(sampleTasks);
+    setCategories(seedCategories());
+    setExpanded(new Set());
+    setDataMenuOpen(false);
+    setDataMessage(`Loaded ${sampleTasks.length} sample tasks across 8 categories, replacing your current ${account ? "cloud (demo)" : "local"} list.`);
   };
 
   // ---- derived view ----------------------------------------------------
@@ -1089,12 +884,12 @@ const signOut = async () => {
   const focusGroups = computeFocusGroups(searchedTasks, vanishingIds);
   const focusViewHasOpen = [...focusGroups.overdue, ...focusGroups.thisWeek, ...focusGroups.noDeadlineHigh].some((t) => expanded.has(t.id));
 
-  const reportRows = computeCategoryTotals(tasks, categories, reportPeriod, language);
+  const reportRows = computeCategoryTotals(tasks, categories, reportPeriod);
   const reportTotalSeconds = reportRows.reduce((s, r) => s + r.seconds, 0);
   const chartData = reportRows.map((r) => ({ name: r.name, hours: +(r.seconds / 3600).toFixed(2), color: r.color, seconds: r.seconds }));
   const timeline = buildTimelineData(tasks, categories, reportPeriod);
-  const catMeta = categoryMeta(categories, language);
-  const leadTimeRows = computeLeadTimeByCategory(tasks, categories, reportPeriod, language);
+  const catMeta = categoryMeta(categories);
+  const leadTimeRows = computeLeadTimeByCategory(tasks, categories, reportPeriod);
 
   const isDark = theme === "dark";
   const chartTickColor = isDark ? "#C7CBD6" : "#5B6272";
@@ -1125,7 +920,7 @@ const signOut = async () => {
           <div className="task-title-row">
             <div className="task-title">{task.title}</div>
             <div className="task-meta">
-              <span className="meta-pill">{t(`priority${task.priority.charAt(0).toUpperCase()}${task.priority.slice(1)}`)}</span>
+              <span className="meta-pill">{p.label}</span>
               {cat && (
                 <span className="meta-cat-chip" style={{ background: `${cat.color}22`, color: cat.color }}>
                   <Tag size={9} />{cat.name}
@@ -1133,22 +928,22 @@ const signOut = async () => {
               )}
               {task.deadline && (
                 <span className="meta-deadline" data-overdue={overdue}>
-                  {overdue ? <AlertCircle size={11} /> : <Calendar size={11} />}{formatDate(task.deadline, language)}
+                  {overdue ? <AlertCircle size={11} /> : <Calendar size={11} />}{formatDate(task.deadline)}
                 </span>
               )}
-              {total > 0 && <span className="meta-progress">{doneCount}/{total} {t("checkedSuffix")}</span>}
+              {total > 0 && <span className="meta-progress">{doneCount}/{total} checked</span>}
               {(totalSecs > 0 || running) && (
-                <span className="meta-time" data-running={running}><Clock size={10} />{formatDuration(totalSecs, language)}</span>
+                <span className="meta-time" data-running={running}><Clock size={10} />{formatDuration(totalSecs)}</span>
               )}
               {task.notes && task.notes.trim() && <span className="meta-notes-flag"><StickyNote size={11} /></span>}
-              {task.done && <span className="meta-done-flag"><CheckCircle2 size={11} /> {t("done")}</span>}
+              {task.done && <span className="meta-done-flag"><CheckCircle2 size={11} /> Done</span>}
             </div>
           </div>
           <div className="task-actions">
             {!task.done && (
               <button className="icon-btn" data-live={running}
                 onClick={(e) => { e.stopPropagation(); running ? pauseTimer(task.id) : startTimer(task.id); }}
-                aria-label={running ? t("pauseTimer") : t("startTimer")}>
+                aria-label={running ? "Pause timer" : "Start timer"}>
                 {running ? <Pause size={14} /> : <Play size={14} />}
               </button>
             )}
@@ -1161,24 +956,24 @@ const signOut = async () => {
             {(isOpen || everOpened.has(task.id)) && (
             <div className="task-body">
               <button className="complete-toggle-btn" data-done={task.done} onClick={() => toggleDone(task.id)}>
-                {task.done ? <><RotateCcw size={14} /> {t("markNotComplete")}</> : <><CheckCircle2 size={14} /> {t("markComplete")}</>}
+                {task.done ? <><RotateCcw size={14} /> Mark as not complete</> : <><CheckCircle2 size={14} /> Mark complete</>}
               </button>
 
               <div className="task-stats">
-                <div className="task-stat-row"><span className="task-stat-label">{t("created")}</span><span className="task-stat-value">{formatDateTimeYMD(task.createdAt)}</span></div>
+                <div className="task-stat-row"><span className="task-stat-label">Created</span><span className="task-stat-value">{formatDateTimeYMD(task.createdAt)}</span></div>
                 {task.done && task.completedAt && (
                   <>
-                    <div className="task-stat-row"><span className="task-stat-label">{t("completedLabel")}</span><span className="task-stat-value">{formatDateTimeYMD(task.completedAt)}</span></div>
-                    <div className="task-stat-row"><span className="task-stat-label">{t("leadTime")}</span><span className="task-stat-value">{formatLeadTime(task.completedAt - task.createdAt, language)}</span></div>
+                    <div className="task-stat-row"><span className="task-stat-label">Completed</span><span className="task-stat-value">{formatDateTimeYMD(task.completedAt)}</span></div>
+                    <div className="task-stat-row"><span className="task-stat-label">Lead time</span><span className="task-stat-value">{formatLeadTime(task.completedAt - task.createdAt)}</span></div>
                   </>
                 )}
               </div>
 
               {(!task.done || task.deadline) && (
                 <div className="deadline-edit">
-                  <label>{t("fieldDeadline")}</label>
+                  <label>Deadline</label>
                   {task.done ? (
-                    <span className="readonly-inline">{formatDate(task.deadline, language)}</span>
+                    <span className="readonly-inline">{formatDate(task.deadline)}</span>
                   ) : (
                     <input type="date" value={task.deadline || ""} onChange={(e) => setDeadline(task.id, e.target.value)} />
                   )}
@@ -1187,13 +982,13 @@ const signOut = async () => {
 
               {(!task.done || (task.notes && task.notes.trim())) && (
                 <>
-                  <p className="section-label"><StickyNote size={11} /> {t("fieldNotes")}</p>
+                  <p className="section-label"><StickyNote size={11} /> Notes</p>
                   {task.done ? (
                     <div className="readonly-block">{task.notes}</div>
                   ) : (
                     <textarea
                       className="notes-area"
-                      placeholder={t("notesPlaceholderTask")}
+                      placeholder="Jot down context, links, or anything worth remembering…"
                       value={task.notes || ""}
                       onChange={(e) => setNotes(task.id, e.target.value)}
                     />
@@ -1203,7 +998,7 @@ const signOut = async () => {
 
               {(!task.done || task.checklist.length > 0) && (
                 <>
-                  <p className="section-label">{t("fieldChecklist")}</p>
+                  <p className="section-label">Checklist</p>
                   {task.done ? (
                     <div className="readonly-checklist">
                       {task.checklist.map((item) => (
@@ -1218,22 +1013,22 @@ const signOut = async () => {
                       <div className="checklist">
                         {task.checklist.map((item) => (
                           <div className="checklist-item" key={item.id}>
-                            <button className="check-box" data-done={item.done} onClick={() => toggleChecklistItem(task.id, item.id)} aria-label={item.done ? t("markItemUndone") : t("markItemDone")}>
+                            <button className="check-box" data-done={item.done} onClick={() => toggleChecklistItem(task.id, item.id)} aria-label={item.done ? "Mark item undone" : "Mark item done"}>
                               <Check size={10} strokeWidth={3} />
                             </button>
                             <span data-done={item.done}>{item.text}</span>
-                            <button className="checklist-item-remove" onClick={() => deleteChecklistItem(task.id, item.id)} aria-label={t("removeChecklistItem")}><X size={13} /></button>
+                            <button className="checklist-item-remove" onClick={() => deleteChecklistItem(task.id, item.id)} aria-label="Remove checklist item"><X size={13} /></button>
                           </div>
                         ))}
                       </div>
                       <div className="checklist-add">
                         <input
-                          placeholder={t("checklistAddPlaceholder")}
+                          placeholder="Add a checklist item…"
                           value={draftItemText[task.id] || ""}
                           onChange={(e) => setDraftItemText((prev) => ({ ...prev, [task.id]: e.target.value }))}
                           onKeyDown={(e) => e.key === "Enter" && addChecklistItem(task.id)}
                         />
-                        <button onClick={() => addChecklistItem(task.id)} aria-label={t("addChecklistItem")}><Plus size={14} /></button>
+                        <button onClick={() => addChecklistItem(task.id)} aria-label="Add checklist item"><Plus size={14} /></button>
                       </div>
                     </>
                   )}
@@ -1242,43 +1037,43 @@ const signOut = async () => {
 
               {(!task.done || totalSecs > 0) && (
                 <>
-                  <p className="section-label"><Clock size={11} /> {t("timeTracking")}</p>
+                  <p className="section-label"><Clock size={11} /> Time tracking</p>
                   <div className="time-section">
                     <div className="time-top-row">
                       <div>
-                        <div className="time-total-label">{t("totalLogged")}</div>
-                        <div className="time-total">{formatDuration(totalSecs, language)}</div>
-                        {running && <div className="timer-live-badge"><span className="pulse-dot" /> {t("runningLabel")}</div>}
+                        <div className="time-total-label">Total logged</div>
+                        <div className="time-total">{formatDuration(totalSecs)}</div>
+                        {running && <div className="timer-live-badge"><span className="pulse-dot" /> running</div>}
                       </div>
                       {!task.done && (
                         <div className="timer-controls">
-                          {!running && task.timerState !== "paused" && <button className="timer-btn" data-kind="start" onClick={() => startTimer(task.id)}><Play size={13} /> {t("start")}</button>}
-                          {task.timerState === "paused" && <button className="timer-btn" data-kind="start" onClick={() => startTimer(task.id)}><Play size={13} /> {t("resume")}</button>}
-                          {running && <button className="timer-btn" onClick={() => pauseTimer(task.id)}><Pause size={13} /> {t("pause")}</button>}
+                          {!running && task.timerState !== "paused" && <button className="timer-btn" data-kind="start" onClick={() => startTimer(task.id)}><Play size={13} /> Start</button>}
+                          {task.timerState === "paused" && <button className="timer-btn" data-kind="start" onClick={() => startTimer(task.id)}><Play size={13} /> Resume</button>}
+                          {running && <button className="timer-btn" onClick={() => pauseTimer(task.id)}><Pause size={13} /> Pause</button>}
                         </div>
                       )}
                     </div>
 
                     {!task.done && (manualOpenFor === task.id ? (
                       <div className="manual-form">
-                        <div className="manual-field"><label>{t("hours")}</label><input type="number" min="0" step="1" value={manualDraft.hours} onChange={(e) => setManualDraft((d) => ({ ...d, hours: e.target.value }))} /></div>
-                        <div className="manual-field"><label>{t("minutes")}</label><input type="number" min="0" max="59" step="1" value={manualDraft.minutes} onChange={(e) => setManualDraft((d) => ({ ...d, minutes: e.target.value }))} /></div>
-                        <div className="manual-field"><label>{t("date")}</label><input type="date" value={manualDraft.date} onChange={(e) => setManualDraft((d) => ({ ...d, date: e.target.value }))} /></div>
-                        <button className="manual-submit" onClick={() => submitManual(task.id)}>{t("logTime")}</button>
-                        <button className="manual-cancel" onClick={closeManual}>{t("cancel")}</button>
+                        <div className="manual-field"><label>Hours</label><input type="number" min="0" step="1" value={manualDraft.hours} onChange={(e) => setManualDraft((d) => ({ ...d, hours: e.target.value }))} /></div>
+                        <div className="manual-field"><label>Minutes</label><input type="number" min="0" max="59" step="1" value={manualDraft.minutes} onChange={(e) => setManualDraft((d) => ({ ...d, minutes: e.target.value }))} /></div>
+                        <div className="manual-field"><label>Date</label><input type="date" value={manualDraft.date} onChange={(e) => setManualDraft((d) => ({ ...d, date: e.target.value }))} /></div>
+                        <button className="manual-submit" onClick={() => submitManual(task.id)}>Log time</button>
+                        <button className="manual-cancel" onClick={closeManual}>Cancel</button>
                       </div>
                     ) : (
-                      <button className="manual-link" onClick={() => openManual(task.id)}>{t("addTimeManually")}</button>
+                      <button className="manual-link" onClick={() => openManual(task.id)}>+ Add time manually</button>
                     ))}
 
                     {task.sessions && task.sessions.length > 0 && (
                       <div className="session-log">
                         {[...task.sessions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6).map((s) => (
                           <div className="session-row" key={s.id}>
-                            <span>{formatDate(s.date, language)}</span>
-                            <span>{formatDuration(s.seconds, language)}</span>
-                            <span className="sess-source">{s.source === "manual" ? t("sourceManual") : t("sourceTracked")}</span>
-                            {!task.done && <button onClick={() => deleteSession(task.id, s.id)} aria-label={t("removeEntry")}><X size={12} /></button>}
+                            <span>{formatDate(s.date)}</span>
+                            <span>{formatDuration(s.seconds)}</span>
+                            <span className="sess-source">{s.source === "manual" ? "manual" : "tracked"}</span>
+                            {!task.done && <button onClick={() => deleteSession(task.id, s.id)} aria-label="Remove entry"><X size={12} /></button>}
                           </div>
                         ))}
                       </div>
@@ -1289,7 +1084,7 @@ const signOut = async () => {
 
               {(!task.done || cat) && (
                 <>
-                  <p className="section-label"><Tag size={11} /> {t("fieldCategory")}</p>
+                  <p className="section-label"><Tag size={11} /> Category</p>
                   <div className="category-section">
                     {task.done ? (
                       <span className="readonly-cat-chip" style={{ background: `${cat.color}22`, color: cat.color }}>{cat.name}</span>
@@ -1298,20 +1093,20 @@ const signOut = async () => {
                         {cat ? (
                           <span className="cat-chip" style={{ background: `${cat.color}22`, color: cat.color }}>
                             {cat.name}
-                            <button onClick={() => clearTaskCategory(task.id)} aria-label={t("removeCatAria", { name: cat.name })}><X size={11} /></button>
+                            <button onClick={() => clearTaskCategory(task.id)} aria-label={`Remove ${cat.name}`}><X size={11} /></button>
                           </span>
                         ) : (
                           <button className="add-cat-btn" onClick={() => setCatDropdownFor(catDropdownFor === task.id ? null : task.id)}>
-                            <Plus size={11} /> {t("addCategory")}
+                            <Plus size={11} /> Add category
                           </button>
                         )}
                         {cat && (
-                          <button className="add-cat-btn" onClick={() => setCatDropdownFor(catDropdownFor === task.id ? null : task.id)}>{t("change")}</button>
+                          <button className="add-cat-btn" onClick={() => setCatDropdownFor(catDropdownFor === task.id ? null : task.id)}>Change</button>
                         )}
                         {catDropdownFor === task.id && (
                           <div className="cat-dropdown">
                             {categories.filter((c) => c.id !== task.category).length === 0 ? (
-                              <div className="cat-dropdown-empty">{categories.length === 0 ? t("noCategoriesYet") : t("noOtherCategories")}</div>
+                              <div className="cat-dropdown-empty">{categories.length === 0 ? "No categories yet." : "No other categories."}</div>
                             ) : (
                               categories.filter((c) => c.id !== task.category).map((c) => (
                                 <div key={c.id} className="cat-dropdown-item" onClick={() => setTaskCategory(task.id, c.id)}>
@@ -1329,13 +1124,13 @@ const signOut = async () => {
 
               {(!task.done || (task.tags && task.tags.length > 0)) && (
                 <>
-                  <p className="section-label"><Hash size={11} /> {t("fieldTags")}</p>
+                  <p className="section-label"><Hash size={11} /> Tags</p>
                   <div className="tag-section" style={{ marginBottom: 0 }}>
                     <div className="tag-chips-row">
                       {(task.tags || []).map((tag) => (
                         <span className="tag-chip" key={tag}>
                           #{tag}
-                          {!task.done && <button onClick={() => removeTaskTag(task.id, tag)} aria-label={t("removeTagAria", { tag })}><X size={11} /></button>}
+                          {!task.done && <button onClick={() => removeTaskTag(task.id, tag)} aria-label={`Remove ${tag}`}><X size={11} /></button>}
                         </span>
                       ))}
                     </div>
@@ -1343,12 +1138,12 @@ const signOut = async () => {
                       <>
                         <div className="tag-add-row">
                           <input
-                            placeholder={t("tagAddPlaceholder")}
+                            placeholder="Add a tag…"
                             value={draftTagText[task.id] || ""}
                             onChange={(e) => setDraftTagText((prev) => ({ ...prev, [task.id]: e.target.value }))}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTaskTagFromDraft(task.id); } }}
                           />
-                          <button onClick={() => addTaskTagFromDraft(task.id)} aria-label={t("addTag")}><Plus size={14} /></button>
+                          <button onClick={() => addTaskTagFromDraft(task.id)} aria-label="Add tag"><Plus size={14} /></button>
                         </div>
                         {getTagSuggestions(draftTagText[task.id], task.tags || []).length > 0 && (
                           <div className="tag-suggestions">
@@ -1366,16 +1161,16 @@ const signOut = async () => {
               <div className="delete-task-row">
                 <div style={{ position: "relative" }}>
                   <button className="delete-task-btn" onClick={() => setConfirmDeleteId(confirmDeleteId === task.id ? null : task.id)}>
-                    <Trash2 size={13} /> {t("deleteTask")}
+                    <Trash2 size={13} /> Delete task
                   </button>
                   {confirmDeleteId === task.id && (
                     <>
                       <div className="backdrop-click" onClick={() => setConfirmDeleteId(null)} />
                       <div className="delete-popover" onClick={(e) => e.stopPropagation()}>
-                        <p>{t("deleteConfirmText")}</p>
+                        <p>Delete this task? This can't be undone.</p>
                         <div className="delete-popover-actions">
-                          <button className="delete-cancel-btn" onClick={() => setConfirmDeleteId(null)}>{t("cancel")}</button>
-                          <button className="delete-confirm-btn-small" onClick={() => { deleteTask(task.id); setConfirmDeleteId(null); }}>{t("delete")}</button>
+                          <button className="delete-cancel-btn" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+                          <button className="delete-confirm-btn-small" onClick={() => { deleteTask(task.id); setConfirmDeleteId(null); }}>Delete</button>
                         </div>
                       </div>
                     </>
@@ -1447,8 +1242,6 @@ const signOut = async () => {
 
         .theme-toggle { display: flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--line-strong); border-radius: 20px; padding: 5px 5px; cursor: pointer; }
         .theme-toggle-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--paper); display: flex; align-items: center; justify-content: center; }
-        .lang-toggle { display: flex; align-items: center; background: var(--card); border: 1px solid var(--line-strong); border-radius: 20px; padding: 5px; cursor: pointer; }
-        .lang-toggle-thumb { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1; overflow: hidden; }
 
         .account-btn { display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 6px; border-radius: 20px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink); cursor: pointer; font-size: 12.5px; }
         .account-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--card); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
@@ -1744,7 +1537,7 @@ const signOut = async () => {
         <div className="navbar-inner">
           <div>
             <p className="docket-title">Docket</p>
-            <p className="docket-sub">{t("subtitle")}</p>
+            <p className="docket-sub">Today's working list</p>
           </div>
 
           <div className="navbar-right">
@@ -1752,25 +1545,25 @@ const signOut = async () => {
               <span className="search-icon"><Search size={13} /></span>
               <input
                 className="search-input"
-                placeholder={t("searchPlaceholder")}
+                placeholder="Search everything…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
               {searchQuery && (
-                <button className="search-clear" onClick={() => setSearchQuery("")} aria-label={t("clearSearch")}><X size={13} /></button>
+                <button className="search-clear" onClick={() => setSearchQuery("")} aria-label="Clear search"><X size={13} /></button>
               )}
             </div>
 
             <div className="view-tabs">
-              <button className="view-tab" data-active={activeView === "tasks"} onClick={() => setActiveView("tasks")}><CheckSquare size={13} /> {t("tabTasks")}</button>
-              <button className="view-tab" data-active={activeView === "focus"} onClick={() => setActiveView("focus")}><Flag size={13} /> {t("tabFocus")}</button>
-              <button className="view-tab" data-active={activeView === "new"} onClick={() => setActiveView("new")}><Plus size={13} /> {t("tabNew")}</button>
-              <button className="view-tab" data-active={activeView === "reports"} onClick={() => setActiveView("reports")}><BarChart3 size={13} /> {t("tabReports")}</button>
+              <button className="view-tab" data-active={activeView === "tasks"} onClick={() => setActiveView("tasks")}><CheckSquare size={13} /> Tasks</button>
+              <button className="view-tab" data-active={activeView === "focus"} onClick={() => setActiveView("focus")}><Flag size={13} /> This Week</button>
+              <button className="view-tab" data-active={activeView === "new"} onClick={() => setActiveView("new")}><Plus size={13} /> New Task</button>
+              <button className="view-tab" data-active={activeView === "reports"} onClick={() => setActiveView("reports")}><BarChart3 size={13} /> Reports</button>
             </div>
 
             <div style={{ position: "relative" }}>
               <button className="nav-btn" data-warn={!storageOk} onClick={() => setDataMenuOpen((v) => !v)}>
-                {account ? <Cloud size={14} /> : <HardDrive size={14} />} {t("dataBtn")}
+                {account ? <Cloud size={14} /> : <HardDrive size={14} />} Data
                 {!storageOk && <AlertCircle size={13} style={{ color: "var(--pr-high)" }} />}
                 <ChevronDown size={13} />
               </button>
@@ -1780,27 +1573,29 @@ const signOut = async () => {
                   <div className="dropdown-panel">
                     {!storageOk && (
                       <div className="storage-error-box">
-                        <AlertCircle size={13} /> {storageError || t("saveErrorFallback")}
+                        <AlertCircle size={13} /> {storageError || "Changes aren't saving right now."}
                       </div>
                     )}
                     <div className="dropdown-panel-label">
-                      {account ? <><Cloud size={12} /> {t("cloudLabel")} — {account.name}</> : <><HardDrive size={12} /> {t("localLabel")}</>}
+                      {account ? <><Cloud size={12} /> Cloud (demo) — {account.name}</> : <><HardDrive size={12} /> Saved locally on this device</>}
                     </div>
-                    <button className="dropdown-item" onClick={exportData}><Download size={14} /> {t("saveToFile")}</button>
-                    <button className="dropdown-item" onClick={triggerImport}><Upload size={14} /> {t("loadFromFile")}</button>
+                    <button className="dropdown-item" onClick={exportData}><Download size={14} /> Save to a file</button>
+                    <button className="dropdown-item" onClick={triggerImport}><Upload size={14} /> Load from a file</button>
                     <input ref={fileInputRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={handleImportFile} />
                     <div className="dropdown-divider" />
-                    <button className="dropdown-item" data-danger="true" onClick={armClear}><Trash2 size={14} /> {t("clearAllData")}</button>
+                    <button className="dropdown-item" onClick={loadSampleData}><Sparkles size={14} /> Load sample data</button>
+                    <div className="dropdown-divider" />
+                    <button className="dropdown-item" data-danger="true" onClick={armClear}><Trash2 size={14} /> Clear all data</button>
                     {clearArmed && (
                       <div className="clear-confirm">
-                        <p className="clear-confirm-text">{clearConfirmText(language, !!account)}</p>
+                        <p className="clear-confirm-text">This permanently deletes every task and category in this {account ? "cloud (demo)" : "local"} list.</p>
                         <label className="clear-confirm-checkbox">
                           <input type="checkbox" checked={clearChecked} onChange={(e) => setClearChecked(e.target.checked)} />
-                          {t("understandUndo")}
+                          I understand this can't be undone.
                         </label>
                         <div className="clear-confirm-actions">
-                          <button className="clear-cancel" onClick={cancelClear}>{t("cancel")}</button>
-                          <button className="clear-confirm-btn" disabled={!clearChecked} onClick={confirmClear}>{t("permanentlyClear")}</button>
+                          <button className="clear-cancel" onClick={cancelClear}>Cancel</button>
+                          <button className="clear-confirm-btn" disabled={!clearChecked} onClick={confirmClear}>Permanently clear</button>
                         </div>
                       </div>
                     )}
@@ -1816,25 +1611,21 @@ const signOut = async () => {
                   {account.name}
                 </button>
               ) : (
-                <button className="nav-btn" onClick={signIn}><LogIn size={14} /> {t("signInGoogle")}</button>
+                <button className="nav-btn" onClick={signIn}><LogIn size={14} /> Sign in with Google</button>
               )}
               {accountMenuOpen && account && (
                 <>
                   <div className="backdrop-click" onClick={() => setAccountMenuOpen(false)} />
                   <div className="dropdown-panel">
-                    <div className="dropdown-panel-label"><User size={12} /> {t("signedInAs", { name: account.name })}</div>
-                    <button className="dropdown-item" data-danger="true" onClick={signOut}><LogOut size={14} /> {t("signOut")}</button>
+                    <div className="dropdown-panel-label"><User size={12} /> Signed in as {account.name} (demo)</div>
+                    <button className="dropdown-item" data-danger="true" onClick={signOut}><LogOut size={14} /> Sign out</button>
                   </div>
                 </>
               )}
             </div>
 
-            <button className="theme-toggle" onClick={() => setTheme((cur) => (cur === "dark" ? "light" : "dark"))} aria-label={t("toggleDarkMode")}>
+            <button className="theme-toggle" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} aria-label="Toggle dark mode">
               <span className="theme-toggle-thumb">{theme === "dark" ? <Moon size={12} /> : <Sun size={12} />}</span>
-            </button>
-
-            <button className="lang-toggle" onClick={() => setLanguage((cur) => (cur === "sv" ? "en" : "sv"))} aria-label={t("toggleLanguage")}>
-              <span className="lang-toggle-thumb">{language === "sv" ? "🇸🇪" : "🇬🇧"}</span>
             </button>
           </div>
         </div>
@@ -1842,81 +1633,81 @@ const signOut = async () => {
 
       <div className="docket-shell">
         {loading ? (
-          <div className="loading-state">{t("loading")}</div>
+          <div className="loading-state">Loading docket…</div>
         ) : (
           <div key={activeView} className="view-transition">
           {activeView === "new" ? (
           <div className="new-task-page">
             <div className="new-task-header-row">
               <div>
-                <p className="new-task-heading">{t("newEntryHeading")}</p>
-                <p className="new-task-sub">{t("newEntrySub")}</p>
+                <p className="new-task-heading">New entry</p>
+                <p className="new-task-sub">Add a task with as much detail as you'd like — you can always fill in more later.</p>
               </div>
-              <button className="nav-btn" onClick={() => setActiveView("tasks")}><ArrowLeft size={14} /> {t("backToTasks")}</button>
+              <button className="nav-btn" onClick={() => setActiveView("tasks")}><ArrowLeft size={14} /> Back to tasks</button>
             </div>
 
             <div className="new-task-grid">
               <div className="new-task-main">
-                <label className="field-label">{t("fieldTask")}</label>
+                <label className="field-label">Task</label>
                 <input
                   className="docket-input new-task-title-input"
-                  placeholder={t("taskTitlePlaceholder")}
+                  placeholder="What needs doing?"
                   value={newTitle}
                   autoFocus
                   onChange={(e) => setNewTitle(e.target.value)}
                 />
 
-                <label className="field-label">{t("fieldNotes")}</label>
+                <label className="field-label">Notes</label>
                 <textarea
                   className="notes-area"
-                  placeholder={t("notesPlaceholderNew")}
+                  placeholder="Context, links, or anything worth remembering…"
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
                   style={{ minHeight: 90 }}
                 />
 
-                <label className="field-label">{t("fieldChecklist")}</label>
+                <label className="field-label">Checklist</label>
                 {newChecklist.length > 0 && (
                   <div className="new-checklist-preview">
                     {newChecklist.map((item) => (
                       <div className="new-checklist-row" key={item.id}>
                         <span>{item.text}</span>
-                        <button onClick={() => removeNewChecklistDraftItem(item.id)} aria-label={t("removeItem")}><X size={13} /></button>
+                        <button onClick={() => removeNewChecklistDraftItem(item.id)} aria-label="Remove item"><X size={13} /></button>
                       </div>
                     ))}
                   </div>
                 )}
                 <div className="checklist-add" style={{ marginBottom: 20 }}>
                   <input
-                    placeholder={t("checklistAddPlaceholder")}
+                    placeholder="Add a checklist item…"
                     value={newChecklistDraft}
                     onChange={(e) => setNewChecklistDraft(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addNewChecklistDraftItem()}
                   />
-                  <button onClick={addNewChecklistDraftItem} aria-label={t("addChecklistItem")}><Plus size={14} /></button>
+                  <button onClick={addNewChecklistDraftItem} aria-label="Add checklist item"><Plus size={14} /></button>
                 </div>
               </div>
 
               <div className="new-task-side">
-                <label className="field-label">{t("fieldPriority")}</label>
+                <label className="field-label">Priority</label>
                 <div className="priority-picker">
                   {Object.entries(PRIORITIES).map(([key, p]) => (
                     <button key={key} className="priority-chip" data-active={newPriority === key}
                       style={{ "--chip-color": p.color, "--chip-tint": p.tint }} onClick={() => setNewPriority(key)}>
-                      {t(`priority${key.charAt(0).toUpperCase()}${key.slice(1)}`)}
+                      {p.label}
                     </button>
                   ))}
                 </div>
 
-                <label className="field-label">{t("fieldDeadline")}</label>
+                <label className="field-label">Deadline</label>
                 <input type="date" className="docket-input" value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} />
 
                 <div className="field-label-row">
-                  <label className="field-label">{t("fieldCategory")}</label>
-                  <button className="manage-cats-link" onClick={() => setShowCategoryManager(true)}><Layers size={11} /> {t("manage")}</button>
+                  <label className="field-label">Category</label>
+                  <button className="manage-cats-link" onClick={() => setShowCategoryManager(true)}><Layers size={11} /> Manage</button>
                 </div>
                 {categories.length === 0 ? (
-                  <p className="cat-hint">{t("noCategoriesHint")}</p>
+                  <p className="cat-hint">No categories yet — use Manage above to add one.</p>
                 ) : (
                   <div className="cat-chip-picker">
                     {categories.map((c) => (
@@ -1929,22 +1720,22 @@ const signOut = async () => {
                   </div>
                 )}
 
-                <label className="field-label"><Hash size={11} style={{ display: "inline", marginRight: 4 }} />{t("fieldTags")}</label>
+                <label className="field-label"><Hash size={11} style={{ display: "inline", marginRight: 4 }} />Tags</label>
                 {newTags.length > 0 && (
                   <div className="tag-chips-row">
                     {newTags.map((tag) => (
-                      <span className="tag-chip" key={tag}>#{tag}<button onClick={() => removeNewTag(tag)} aria-label={t("removeTagAria", { tag })}><X size={11} /></button></span>
+                      <span className="tag-chip" key={tag}>#{tag}<button onClick={() => removeNewTag(tag)} aria-label={`Remove ${tag}`}><X size={11} /></button></span>
                     ))}
                   </div>
                 )}
                 <div className="tag-add-row">
                   <input
-                    placeholder={t("tagAddPlaceholder")}
+                    placeholder="Add a tag…"
                     value={newTagDraft}
                     onChange={(e) => setNewTagDraft(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addNewTag(); } }}
                   />
-                  <button onClick={addNewTag} aria-label={t("addTag")}><Plus size={14} /></button>
+                  <button onClick={addNewTag} aria-label="Add tag"><Plus size={14} /></button>
                 </div>
                 {getTagSuggestions(newTagDraft, newTags).length > 0 && (
                   <div className="tag-suggestions">
@@ -1958,11 +1749,11 @@ const signOut = async () => {
 
             <div className="new-task-footer">
               <button className="add-btn new-task-submit" onClick={addTask} disabled={!newTitle.trim()}>
-                <Plus size={16} /> {t("addToDocket")}
+                <Plus size={16} /> Add to docket
               </button>
               {!storageOk && (
                 <p className="storage-note" style={{ marginTop: 12, textAlign: "center" }}>
-                  {t("saveErrorFallback")}{storageError ? ` — ${storageError}` : ""}
+                  Changes aren't saving right now{storageError ? ` — ${storageError}` : "."}
                 </p>
               )}
             </div>
@@ -1972,37 +1763,37 @@ const signOut = async () => {
             <div>
               <div className="focus-section-head">
                 <AlertCircle size={16} style={{ color: "var(--pr-high)" }} />
-                <p className="focus-section-title" data-tone="danger">{t("overdue")}</p>
+                <p className="focus-section-title" data-tone="danger">Overdue</p>
                 <span className="focus-count">{focusGroups.overdue.length}</span>
               </div>
               {focusGroups.overdue.length === 0 ? (
-                <p className="focus-empty">{t("overdueEmpty")}</p>
+                <p className="focus-empty">Nothing overdue — nice work.</p>
               ) : (
-                <div className="task-list">{focusGroups.overdue.map((ft) => renderTaskCard(ft, focusViewHasOpen))}</div>
+                <div className="task-list">{focusGroups.overdue.map((t) => renderTaskCard(t, focusViewHasOpen))}</div>
               )}
             </div>
             <div>
               <div className="focus-section-head">
                 <Flag size={16} style={{ color: "var(--accent)" }} />
-                <p className="focus-section-title">{t("dueThisWeek")}</p>
+                <p className="focus-section-title">Due this week</p>
                 <span className="focus-count">{focusGroups.thisWeek.length}</span>
               </div>
               {focusGroups.thisWeek.length === 0 ? (
-                <p className="focus-empty">{t("dueThisWeekEmpty")}</p>
+                <p className="focus-empty">Nothing due this week.</p>
               ) : (
-                <div className="task-list">{focusGroups.thisWeek.map((ft) => renderTaskCard(ft, focusViewHasOpen))}</div>
+                <div className="task-list">{focusGroups.thisWeek.map((t) => renderTaskCard(t, focusViewHasOpen))}</div>
               )}
             </div>
             <div>
               <div className="focus-section-head">
                 <AlertCircle size={16} style={{ color: "var(--pr-medium)" }} />
-                <p className="focus-section-title">{t("highNoDeadline")}</p>
+                <p className="focus-section-title">High priority, no deadline</p>
                 <span className="focus-count">{focusGroups.noDeadlineHigh.length}</span>
               </div>
               {focusGroups.noDeadlineHigh.length === 0 ? (
-                <p className="focus-empty">{t("noneRightNow")}</p>
+                <p className="focus-empty">None right now.</p>
               ) : (
-                <div className="task-list">{focusGroups.noDeadlineHigh.map((ft) => renderTaskCard(ft, focusViewHasOpen))}</div>
+                <div className="task-list">{focusGroups.noDeadlineHigh.map((t) => renderTaskCard(t, focusViewHasOpen))}</div>
               )}
             </div>
           </div>
@@ -2010,42 +1801,42 @@ const signOut = async () => {
           <div className="docket-layout">
             <div>
               <div className="panel">
-                <p className="panel-label">{t("status")}</p>
-                <button className="filter-row" data-active={filterStatus === "all"} onClick={() => setFilterStatus("all")}>{t("all")}<span className="filter-row-count">{tasks.length}</span></button>
-                <button className="filter-row" data-active={filterStatus === "active"} onClick={() => setFilterStatus("active")}>{t("active")}<span className="filter-row-count">{counts.all}</span></button>
-                <button className="filter-row" data-active={filterStatus === "done"} onClick={() => setFilterStatus("done")}>{t("completed")}<span className="filter-row-count">{counts.done}</span></button>
+                <p className="panel-label">Status</p>
+                <button className="filter-row" data-active={filterStatus === "all"} onClick={() => setFilterStatus("all")}>All<span className="filter-row-count">{tasks.length}</span></button>
+                <button className="filter-row" data-active={filterStatus === "active"} onClick={() => setFilterStatus("active")}>Active<span className="filter-row-count">{counts.all}</span></button>
+                <button className="filter-row" data-active={filterStatus === "done"} onClick={() => setFilterStatus("done")}>Completed<span className="filter-row-count">{counts.done}</span></button>
               </div>
 
               <div className="panel">
-                <p className="panel-label">{t("fieldPriority")}</p>
-                <button className="filter-row" data-active={filterPriority === "all"} onClick={() => setFilterPriority("all")}>{t("all")}</button>
+                <p className="panel-label">Priority</p>
+                <button className="filter-row" data-active={filterPriority === "all"} onClick={() => setFilterPriority("all")}>All</button>
                 {Object.entries(PRIORITIES).map(([key, p]) => (
                   <button key={key} className="filter-row" data-active={filterPriority === key} onClick={() => setFilterPriority(key)}>
-                    {t(`priority${key.charAt(0).toUpperCase()}${key.slice(1)}`)}<span className="filter-row-count">{counts[key]}</span>
+                    {p.label}<span className="filter-row-count">{counts[key]}</span>
                   </button>
                 ))}
               </div>
 
               <div className="panel">
                 <p className="panel-label">
-                  {t("fieldCategory")}
-                  <button className="manage-cats-link" onClick={() => setShowCategoryManager(true)}><Layers size={11} /> {t("manage")}</button>
+                  Category
+                  <button className="manage-cats-link" onClick={() => setShowCategoryManager(true)}><Layers size={11} /> Manage</button>
                 </p>
-                <button className="filter-row" data-active={filterCategory === "all"} onClick={() => setFilterCategory("all")}>{t("all")}</button>
+                <button className="filter-row" data-active={filterCategory === "all"} onClick={() => setFilterCategory("all")}>All</button>
                 {categories.map((c) => (
                   <button key={c.id} className="filter-row" data-active={filterCategory === c.id} onClick={() => setFilterCategory(c.id)}>
                     <span className="filter-row-name"><span className="filter-dot" style={{ background: c.color }} />{c.name}</span>
                   </button>
                 ))}
                 <button className="filter-row" data-active={filterCategory === "__uncategorized__"} onClick={() => setFilterCategory("__uncategorized__")}>
-                  <span className="filter-row-name"><span className="filter-dot" style={{ background: UNCATEGORIZED_COLOR }} />{t("uncategorized")}</span>
+                  <span className="filter-row-name"><span className="filter-dot" style={{ background: UNCATEGORIZED_COLOR }} />Uncategorized</span>
                   <span className="filter-row-count">{uncategorizedCount}</span>
                 </button>
               </div>
 
               {allTagsSorted.length > 0 && (
                 <div className="panel">
-                  <p className="panel-label">{t("tags")}</p>
+                  <p className="panel-label">Tags</p>
                   <div className="tag-filter-list">
                     {allTagsSorted.map((tag) => (
                       <button key={tag} className="tag-filter-chip" data-active={filterTags.has(tag)} onClick={() => toggleFilterTag(tag)}>
@@ -2057,11 +1848,11 @@ const signOut = async () => {
               )}
 
               <div className="panel">
-                <p className="panel-label">{t("sortBy")}</p>
+                <p className="panel-label">Sort by</p>
                 <div className="sort-row">
-                  <button className="sort-btn" data-active={sortBy === "priority"} onClick={() => setSortBy("priority")}>{t("sortPriority")}</button>
-                  <button className="sort-btn" data-active={sortBy === "deadline"} onClick={() => setSortBy("deadline")}>{t("sortDeadline")}</button>
-                  <button className="sort-btn" data-active={sortBy === "created"} onClick={() => setSortBy("created")}>{t("sortDateAdded")}</button>
+                  <button className="sort-btn" data-active={sortBy === "priority"} onClick={() => setSortBy("priority")}>Priority</button>
+                  <button className="sort-btn" data-active={sortBy === "deadline"} onClick={() => setSortBy("deadline")}>Deadline</button>
+                  <button className="sort-btn" data-active={sortBy === "created"} onClick={() => setSortBy("created")}>Date added</button>
                 </div>
               </div>
 
@@ -2071,20 +1862,20 @@ const signOut = async () => {
             <div className="task-list">
               {visible.length === 0 && (
                 <div className="empty-state">
-                  {t("emptyStatePrefix")}<button className="inline-link" onClick={() => setActiveView("new")}>{t("emptyStateLink")}</button>{t("emptyStateSuffix")}
+                  Nothing here. <button className="inline-link" onClick={() => setActiveView("new")}>Add a task</button>, or adjust filters to see more of the docket.
                 </div>
               )}
-              {visible.map((vt) => renderTaskCard(vt, tasksViewHasOpen))}
+              {visible.map((t) => renderTaskCard(t, tasksViewHasOpen))}
             </div>
           </div>
         ) : (
           <div className="reports-panel">
             <div className="reports-head">
-              <p className="reports-heading">{t("timeByCategory")}</p>
+              <p className="reports-heading">Time by category</p>
               <div className="period-picker">
                 {["week", "month", "year", "all"].map((p) => (
                   <button key={p} className="period-chip" data-active={reportPeriod === p} onClick={() => setReportPeriod(p)}>
-                    {PERIOD_LABELS[language][p]}
+                    {p === "all" ? "All time" : p[0].toUpperCase() + p.slice(1)}
                   </button>
                 ))}
               </div>
@@ -2092,17 +1883,17 @@ const signOut = async () => {
 
             <div className="reports-controls-row">
               <div className="reports-total" style={{ marginBottom: 0 }}>
-                <strong>{formatDuration(reportTotalSeconds, language)}</strong> {t("trackedStrong")} {PERIOD_TRACKED_PHRASE[language][reportPeriod]}
+                <strong>{formatDuration(reportTotalSeconds)}</strong> tracked {reportPeriod === "all" ? "in total" : `this ${reportPeriod}`}
               </div>
               <div className="chart-type-picker">
-                <button className="chart-type-chip" data-active={chartType === "bar"} onClick={() => setChartType("bar")}><BarChart3 size={13} /> {CHART_TYPE_LABELS[language].bar}</button>
-                <button className="chart-type-chip" data-active={chartType === "pie"} onClick={() => setChartType("pie")}><PieChartIcon size={13} /> {CHART_TYPE_LABELS[language].pie}</button>
-                <button className="chart-type-chip" data-active={chartType === "timeline"} onClick={() => setChartType("timeline")}><TrendingUp size={13} /> {CHART_TYPE_LABELS[language].timeline}</button>
+                <button className="chart-type-chip" data-active={chartType === "bar"} onClick={() => setChartType("bar")}><BarChart3 size={13} /> Bar</button>
+                <button className="chart-type-chip" data-active={chartType === "pie"} onClick={() => setChartType("pie")}><PieChartIcon size={13} /> Pie</button>
+                <button className="chart-type-chip" data-active={chartType === "timeline"} onClick={() => setChartType("timeline")}><TrendingUp size={13} /> Timeline</button>
               </div>
             </div>
 
             {chartData.length === 0 ? (
-              <div className="empty-state">{t("noTrackedTime")}</div>
+              <div className="empty-state">No tracked time in this period yet. Start a timer or log time manually on a task.</div>
             ) : (
               <>
                 {chartType === "bar" && (
@@ -2114,7 +1905,7 @@ const signOut = async () => {
                       <Tooltip
                         cursor={{ fill: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }}
                         contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle}
-                        formatter={(value, name, props) => [formatDuration(props.payload.seconds, language), t("timeTooltipLabel")]}
+                        formatter={(value, name, props) => [formatDuration(props.payload.seconds), "Time"]}
                       />
                       <Bar dataKey="hours" radius={[0, 4, 4, 0]} barSize={22}>
                         {chartData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
@@ -2131,7 +1922,7 @@ const signOut = async () => {
                       </Pie>
                       <Tooltip
                         contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle}
-                        formatter={(value, name, props) => [formatDuration(props.payload.seconds, language), props.payload.name]}
+                        formatter={(value, name, props) => [formatDuration(props.payload.seconds), props.payload.name]}
                       />
                       <Legend formatter={(value) => <span style={{ color: chartTickColor, fontSize: 12.5 }}>{value}</span>} />
                     </PieChart>
@@ -2156,7 +1947,7 @@ const signOut = async () => {
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="empty-state">{t("pickPeriodForTimeline")}</div>
+                    <div className="empty-state">Pick Week, Month, or Year above to see the timeline view.</div>
                   )
                 )}
 
@@ -2165,7 +1956,7 @@ const signOut = async () => {
                     <div className="breakdown-row" key={r.id}>
                       <span className="breakdown-dot" style={{ background: r.color }} />
                       <span className="breakdown-name">{r.name}</span>
-                      <span className="breakdown-time">{formatDuration(r.seconds, language)}</span>
+                      <span className="breakdown-time">{formatDuration(r.seconds)}</span>
                       <span className="breakdown-pct">{reportTotalSeconds ? Math.round((r.seconds / reportTotalSeconds) * 100) : 0}%</span>
                     </div>
                   ))}
@@ -2175,17 +1966,17 @@ const signOut = async () => {
 
             {leadTimeRows.length > 0 && (
               <>
-                <p className="reports-subheading">{t("avgLeadTimeByCategory")}</p>
+                <p className="reports-subheading">Average lead time by category</p>
                 <p style={{ fontSize: 11.5, color: "var(--muted)", margin: "-4px 0 12px" }}>
-                  {t("leadTimeCaptionPrefix")} {PERIOD_FINISHED_PHRASE[language][reportPeriod]}.
+                  Time from creating a task to marking it complete, for tasks finished {reportPeriod === "all" ? "at any time" : `this ${reportPeriod}`}.
                 </p>
                 <div className="breakdown-list">
                   {leadTimeRows.map((r) => (
                     <div className="breakdown-row" key={r.id}>
                       <span className="breakdown-dot" style={{ background: r.color }} />
                       <span className="breakdown-name">{r.name}</span>
-                      <span className="breakdown-time">{formatLeadTime(r.avgMs, language)}</span>
-                      <span className="breakdown-pct">{pluralTasks(r.count, language)}</span>
+                      <span className="breakdown-time">{formatLeadTime(r.avgMs)}</span>
+                      <span className="breakdown-pct">{r.count} task{r.count === 1 ? "" : "s"}</span>
                     </div>
                   ))}
                 </div>
@@ -2201,12 +1992,12 @@ const signOut = async () => {
         <div className="modal-backdrop" onClick={() => setShowCategoryManager(false)}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <p className="modal-title">{t("categoriesTitle")}</p>
-              <button className="modal-close" onClick={() => setShowCategoryManager(false)} aria-label={t("close")}><X size={18} /></button>
+              <p className="modal-title">Categories</p>
+              <button className="modal-close" onClick={() => setShowCategoryManager(false)} aria-label="Close"><X size={18} /></button>
             </div>
-            <p className="modal-sub">{t("categoriesSub")}</p>
+            <p className="modal-sub">Manage the tags you can assign to tasks. Drag the handle to reorder — the order shown here is used everywhere.</p>
 
-            {categories.length === 0 && <p className="cat-empty">{t("noCategoriesAddFirst")}</p>}
+            {categories.length === 0 && <p className="cat-empty">No categories yet — add your first one below.</p>}
             {categories.map((c) => (
               <div
                 className="cat-manage-row" key={c.id}
@@ -2221,7 +2012,7 @@ const signOut = async () => {
                 <input
                   type="color" className="cat-color-input" value={c.color}
                   onChange={(e) => updateCategoryColor(c.id, e.target.value)}
-                  aria-label={t("changeColorAria", { name: c.name })}
+                  aria-label={`Change color for ${c.name}`}
                 />
                 {editingCategoryId === c.id ? (
                   <input className="cat-manage-name-input" value={editingCategoryName} autoFocus
@@ -2232,25 +2023,25 @@ const signOut = async () => {
                   <span className="cat-manage-name">{c.name}</span>
                 )}
                 <div className="cat-manage-actions">
-                  <button className="icon-btn" onClick={() => startRenameCategory(c)} aria-label={t("renameAria", { name: c.name })}><Pencil size={13} /></button>
-                  <button className="icon-btn" onClick={() => deleteCategory(c.id)} aria-label={t("deleteAria", { name: c.name })}><Trash2 size={13} /></button>
+                  <button className="icon-btn" onClick={() => startRenameCategory(c)} aria-label={`Rename ${c.name}`}><Pencil size={13} /></button>
+                  <button className="icon-btn" onClick={() => deleteCategory(c.id)} aria-label={`Delete ${c.name}`}><Trash2 size={13} /></button>
                 </div>
               </div>
             ))}
 
             <div className="cat-add-form">
-              <label className="field-label">{t("newCategory")}</label>
-              <input className="docket-input" placeholder={t("categoryNamePlaceholder")} value={newCategoryName}
+              <label className="field-label">New category</label>
+              <input className="docket-input" placeholder="e.g. Budgeting, Development…" value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCategory()} />
               <div className="cat-swatches">
                 {suggestedColors.slice(0, 8).map((color) => (
-                  <button key={color} className="swatch" data-active={newCategoryColor === color} style={{ background: color }} onClick={() => setNewCategoryColor(color)} aria-label={t("chooseColorAria", { color })} />
+                  <button key={color} className="swatch" data-active={newCategoryColor === color} style={{ background: color }} onClick={() => setNewCategoryColor(color)} aria-label={`Choose color ${color}`} />
                 ))}
-                <label className="swatch-custom-wrap" title={t("customColor")} style={{ background: newCategoryColor }}>
+                <label className="swatch-custom-wrap" title="Custom color" style={{ background: newCategoryColor }}>
                   <input type="color" value={newCategoryColor} onChange={(e) => setNewCategoryColor(e.target.value)} />
                 </label>
               </div>
-              <button className="add-btn" onClick={addCategory} disabled={!newCategoryName.trim()}><Plus size={14} /> {t("addCategory")}</button>
+              <button className="add-btn" onClick={addCategory} disabled={!newCategoryName.trim()}><Plus size={14} /> Add category</button>
               {catMessage && <p className="cat-message">{catMessage}</p>}
             </div>
           </div>
