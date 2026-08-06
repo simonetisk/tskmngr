@@ -830,24 +830,21 @@ export default function Docket() {
   };
 
   useEffect(() => {
-  (async () => {
-    try {
-      const settingsRes = await appStorage.get(SETTINGS_KEY, false);
-      if (settingsRes && settingsRes.value) {
-        const s = JSON.parse(settingsRes.value);
-        if (s.theme === "light" || s.theme === "dark") setTheme(s.theme);
-        if (s.language === "en" || s.language === "sv") setLanguage(s.language);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      const acc = user ? { id: user.uid, name: user.displayName || user.email } : null;
+      setAccount(acc);
+      try {
+        const settingsRes = await appStorage.get(SETTINGS_KEY, false);
+        if (settingsRes && settingsRes.value) {
+          const s = JSON.parse(settingsRes.value);
+          if (s.theme === "light" || s.theme === "dark") setTheme(s.theme);
+          if (s.language === "en" || s.language === "sv") setLanguage(s.language);
+        }
+      } catch (e) {
+        if (!isNotFoundError(e)) console.error("Docket: failed to load settings", e);
       }
-    } catch (e) {
-      if (!isNotFoundError(e)) console.error("Docket: failed to load settings", e);
-    }
-  })();
-
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-    const acc = user ? { id: user.uid, name: user.displayName || user.email } : null;
-    setAccount(acc);
-    await loadForAccount(acc);
-  });
+      await loadForAccount(acc);
+    });
     return unsubscribe;
   }, []);
 
@@ -916,10 +913,7 @@ const signIn = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
-    const acc = { id: user.uid, name: user.displayName || user.email };
-    setAccount(acc);
-    await loadForAccount(acc);
-    setDataMessage(signedInMessage(language, acc.name));
+    setDataMessage(signedInMessage(language, user.displayName || user.email));
   } catch (e) {
     console.error("Google sign-in failed", e);
     setDataMessage(t("signInFailedMsg"));
@@ -927,9 +921,7 @@ const signIn = async () => {
 };
 const signOut = async () => {
   await firebaseSignOut(auth);
-  setAccount(null);
   setAccountMenuOpen(false);
-  await loadForAccount(null);
   setDataMessage(t("signedOutMsg"));
 };
 
