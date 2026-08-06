@@ -726,6 +726,7 @@ export default function Docket() {
   const [storageOk, setStorageOk] = useState(true);
   const [storageError, setStorageError] = useState("");
   const loadedRef = useRef(false);
+  const settingsLoadedRef = useRef(false);
   const accountRef = useRef(null);
 
   const [account, setAccount] = useState(null);
@@ -843,6 +844,7 @@ export default function Docket() {
       } catch (e) {
         if (!isNotFoundError(e)) console.error("Docket: failed to load settings", e);
       }
+      settingsLoadedRef.current = true;
       await loadForAccount(acc);
     });
     return unsubscribe;
@@ -877,10 +879,11 @@ export default function Docket() {
   }, [categories]);
 
   useEffect(() => {
-    if (!loadedRef.current) return;
+    if (!settingsLoadedRef.current) return;
     (async () => {
       try {
         await appStorage.set(SETTINGS_KEY, JSON.stringify({ theme, language }), false);
+        setStorageOk(true); setStorageError("");
       } catch (e) {
         console.error("Docket: failed to save settings", e);
         setStorageOk(false);
