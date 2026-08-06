@@ -30,6 +30,18 @@ const UNCATEGORIZED_COLOR = "#95A0AC";
 const TASKS_KEY = "tasks:v1";
 const CATEGORIES_KEY = "categories:v1";
 const SETTINGS_KEY = "settings:v1";
+const LOCAL_SETTINGS_STORAGE_KEY = `docket:${SETTINGS_KEY}`;
+
+// Theme and language are device preferences, not account data — always read/written straight
+// to localStorage (never Firestore), and read synchronously at startup so the correct theme
+// is applied on the very first render. No async round-trip means no flash of the wrong theme.
+function readLocalSettings() {
+  try {
+    const raw = localStorage.getItem(LOCAL_SETTINGS_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* ignore malformed/blocked storage */ }
+  return {};
+}
 
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -714,8 +726,14 @@ function signedInMessage(lang, name) {
 export default function Docket() {
   const [tasks, setTasks] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [theme, setTheme] = useState("dark");
-  const [language, setLanguage] = useState("sv");
+  const [theme, setTheme] = useState(() => {
+    const s = readLocalSettings();
+    return s.theme === "light" || s.theme === "dark" ? s.theme : "dark";
+  });
+  const [language, setLanguage] = useState(() => {
+    const s = readLocalSettings();
+    return s.language === "en" || s.language === "sv" ? s.language : "sv";
+  });
   const [activeView, setActiveView] = useState("tasks");
   const [reportPeriod, setReportPeriod] = useState("month");
   const [chartType, setChartType] = useState("bar");
@@ -726,7 +744,6 @@ export default function Docket() {
   const [storageOk, setStorageOk] = useState(true);
   const [storageError, setStorageError] = useState("");
   const loadedRef = useRef(false);
-  const settingsLoadedRef = useRef(false);
   const accountRef = useRef(null);
 
   const [account, setAccount] = useState(null);
@@ -834,17 +851,6 @@ export default function Docket() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       const acc = user ? { id: user.uid, name: user.displayName || user.email } : null;
       setAccount(acc);
-      try {
-        const settingsRes = await appStorage.get(SETTINGS_KEY, false);
-        if (settingsRes && settingsRes.value) {
-          const s = JSON.parse(settingsRes.value);
-          if (s.theme === "light" || s.theme === "dark") setTheme(s.theme);
-          if (s.language === "en" || s.language === "sv") setLanguage(s.language);
-        }
-      } catch (e) {
-        if (!isNotFoundError(e)) console.error("Docket: failed to load settings", e);
-      }
-      settingsLoadedRef.current = true;
       await loadForAccount(acc);
     });
     return unsubscribe;
@@ -879,17 +885,11 @@ export default function Docket() {
   }, [categories]);
 
   useEffect(() => {
-    if (!settingsLoadedRef.current) return;
-    (async () => {
-      try {
-        await appStorage.set(SETTINGS_KEY, JSON.stringify({ theme, language }), false);
-        setStorageOk(true); setStorageError("");
-      } catch (e) {
-        console.error("Docket: failed to save settings", e);
-        setStorageOk(false);
-        setStorageError(`Save failed: ${errMsg(e)}`);
-      }
-    })();
+    try {
+      localStorage.setItem(LOCAL_SETTINGS_STORAGE_KEY, JSON.stringify({ theme, language }));
+    } catch (e) {
+      console.error("Docket: failed to save theme/language preference locally", e);
+    }
   }, [theme, language]);
 
   useEffect(() => {
